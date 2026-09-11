@@ -674,11 +674,6 @@
       afterSelectionChange();
       showToast("Выбор очищен · ⌘Z вернёт обратно");
     });
-    document.getElementById("legal-toggle").addEventListener("click", event => {
-      const content = document.getElementById("legal-content");
-      content.hidden = !content.hidden;
-      event.currentTarget.setAttribute("aria-expanded", String(!content.hidden));
-    });
 
     bindCheck("gradient-enabled", "gradient", updateGradientControls);
     bindColor("fill-start", "fillStart");
@@ -1166,7 +1161,7 @@
       format: PROJECT_FORMAT,
       version: PROJECT_VERSION,
       savedAt: new Date().toISOString(),
-      application: "Контур — редактор карты России",
+      application: "Редактор карты России",
       settings,
       selection: {
         regions: [...state.selectedRegions].sort(),
@@ -1206,7 +1201,7 @@
     try { raw = JSON.parse(text); }
     catch (_) { throw new Error("это не корректный JSON"); }
     if (!isPlainRecord(raw) || hasBlockedKeys(raw)) throw new Error("неверная структура проекта");
-    if (raw.format !== PROJECT_FORMAT) throw new Error("файл создан не редактором «Контур»");
+    if (raw.format !== PROJECT_FORMAT) throw new Error("файл создан не этим редактором");
     if (raw.version !== PROJECT_VERSION) throw new Error(`версия проекта ${String(raw.version)} не поддерживается`);
     if (!isPlainRecord(raw.settings) || !isPlainRecord(raw.selection) || hasBlockedKeys(raw.settings) || hasBlockedKeys(raw.selection)) {
       throw new Error("неверная структура настроек");
@@ -1393,7 +1388,7 @@
     const vector = getExportSvg({ omitCityLabels: true });
     const dataUri = svgToDataUri(vector.xml);
     const pptx = new PptxGenJS();
-    pptx.author = "Контур — редактор карты России";
+    pptx.author = "Редактор карты России · map.kachkovenko.com";
     pptx.subject = "Карта России";
     pptx.title = "Карта России";
     pptx.company = "map.kachkovenko.com";
@@ -1412,7 +1407,7 @@
     }
     slide.addImage({ data: dataUri, x, y, w, h, altText: "Карта России" });
     addEditableCityLabels(slide, vector, { x, y, w, h, slideW, slideH });
-    slide.addNotes("Создано в редакторе «Контур». Состав субъектов — по статье 65 Конституции РФ. Часть показанных границ международно оспаривается.");
+    slide.addNotes("Создано в редакторе карты России (map.kachkovenko.com). Состав субъектов — по статье 65 Конституции РФ. Часть показанных границ международно оспаривается.");
     const [pptxBlob, pngFallback] = await Promise.all([
       pptx.write({ outputType: "blob", compression: true }),
       renderPng(1, vector)
