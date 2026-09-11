@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#171717">
+  <title>Контур — редактор карты России</title>
+  <meta name="description" content="Онлайн-редактор карты России для презентаций: регионы, города, цвета, проекции и экспорт в PNG, SVG и PPTX.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Контур, на главную">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>Контур</span>
+      </a>
+      <div class="document-title">
+        <span class="document-title__name">Карта России</span>
+        <span class="save-state"><i></i> Сохранено локально</span>
+      </div>
+      <div class="top-actions">
+        <button class="icon-button mobile-panel-toggle" id="open-library" aria-label="Открыть выбор объектов">⌕</button>
+        <button class="icon-button mobile-panel-toggle" id="open-inspector" aria-label="Открыть настройки карты">✦</button>
+        <div class="history-buttons" aria-label="История изменений">
+          <button class="icon-button" id="undo" title="Отменить (⌘Z)" aria-label="Отменить" disabled>↶</button>
+          <button class="icon-button" id="redo" title="Повторить (⇧⌘Z)" aria-label="Повторить" disabled>↷</button>
+        </div>
+        <button class="button button--ghost" id="reset-all">Сбросить</button>
+        <div class="export-menu">
+          <button class="button button--primary" id="export-main" aria-haspopup="true" aria-expanded="false">Экспортировать <span>⌄</span></button>
+          <div class="export-popover" id="export-popover" hidden>
+            <button data-export="png"><b>PNG</b><small>Растр ×2, для слайда</small></button>
+            <button data-export="copy"><b>Копия</b><small>PNG в буфер обмена</small></button>
+            <button data-export="svg"><b>SVG</b><small>Вектор, для редактирования</small></button>
+            <button data-export="pptx"><b>PPTX</b><small>Векторный SVG на слайде</small></button>
+            <div class="export-popover__divider"></div>
+            <button data-project-action="save"><b>JSON</b><small>Сохранить редактируемый проект</small></button>
+            <button data-project-action="open"><b>Открыть</b><small>Импортировать проект JSON</small></button>
+            <div class="export-popover__divider"></div>
+            <label class="export-popover__option"><input id="project-companion" type="checkbox" checked><span>Сохранять JSON-проект вместе с файлом</span></label>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="library panel-column" id="library-panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Объекты</p>
+            <h1>Что отметить?</h1>
+          </div>
+          <button class="icon-button close-mobile" data-close-panel aria-label="Закрыть">×</button>
+        </div>
+
+        <label class="search-field">
+          <span aria-hidden="true">⌕</span>
+          <input id="search" type="search" placeholder="Регион или город" autocomplete="off">
+          <kbd>⌘ K</kbd>
+        </label>
+
+        <div class="tabs" role="tablist">
+          <button class="tab is-active" data-tab="regions" role="tab" aria-selected="true">Регионы <span id="regions-count">89</span></button>
+          <button class="tab" data-tab="cities" role="tab" aria-selected="false">Города <span id="cities-count">—</span></button>
+          <button class="tab" data-tab="selected" role="tab" aria-selected="false">Выбрано <span id="selected-total">0</span></button>
+        </div>
+
+        <div class="fd-chips" id="fd-chips" aria-label="Федеральные округа"></div>
+
+        <div class="selection-summary">
+          <button id="select-found" hidden></button>
+          <span class="selection-summary__spacer"></span>
+          <button id="clear-selection">Очистить всё</button>
+        </div>
+
+        <div class="object-list" id="object-list" aria-live="polite"></div>
+
+        <div class="legal-note">
+          <button id="legal-toggle" aria-expanded="false">
+            <span class="legal-note__icon">i</span>
+            <span>Состав карты и границы</span>
+            <span>⌄</span>
+          </button>
+          <div id="legal-content" hidden>
+            На карте — 89 субъектов по статье 65 Конституции РФ. Границы Крыма, Севастополя и четырёх субъектов, включённых РФ в 2022 году, являются международно спорными.
+          </div>
+        </div>
+      </aside>
+
+      <main class="stage" id="stage">
+        <div class="stage-toolbar">
+          <div class="view-switch" aria-label="Вид карты">
+            <button class="is-active" data-quick-projection="conic">Плоская</button>
+            <button data-quick-projection="globe">Линза</button>
+          </div>
+          <span class="stage-hint" id="stage-hint">Колесо — масштаб · перетаскивание — перемещение · подписи городов можно двигать</span>
+        </div>
+
+        <div class="canvas-viewport" id="canvas-viewport">
+          <div class="artboard" id="artboard">
+            <svg id="map" role="img" aria-label="Редактируемая карта России" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="land-gradient" gradientUnits="userSpaceOnUse">
+                  <stop id="gradient-start" offset="0%"></stop>
+                  <stop id="gradient-end" offset="100%"></stop>
+                </linearGradient>
+                <filter id="marker-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity=".25"></feDropShadow>
+                </filter>
+              </defs>
+              <rect class="export-background" id="export-background"></rect>
+              <g id="export-content">
+                <g id="regions-layer"></g>
+                <path id="country-outline" class="country-outline"></path>
+                <g id="region-labels"></g>
+                <g id="cities-layer"></g>
+              </g>
+            </svg>
+            <div class="frame-label" id="frame-label">16:9 · PNG 3200 × 1800</div>
+          </div>
+        </div>
+
+        <div class="map-controls">
+          <button id="zoom-out" aria-label="Уменьшить">−</button>
+          <output id="zoom-level" aria-label="Текущий масштаб">100%</output>
+          <button id="zoom-in" aria-label="Увеличить">+</button>
+          <button id="fit-map">Вписать</button>
+        </div>
+
+        <div class="tooltip" id="tooltip" hidden></div>
+        <div class="toast" id="toast" role="status" hidden></div>
+      </main>
+
+      <aside class="inspector panel-column" id="inspector-panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Оформление</p>
+            <h2>Настройки карты</h2>
+          </div>
+          <button class="icon-button close-mobile" data-close-panel aria-label="Закрыть">×</button>
+        </div>
+
+        <section class="control-section" data-section="fill">
+          <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-fill"><span>Заливка</span><span class="section-number">01</span><span class="section-chevron" aria-hidden="true">⌄</span></button>
+          <div class="section-body" id="section-fill">
+            <div class="section-body__inner">
+              <label class="switch-row">
+                <span>Градиент</span>
+                <input class="switch" id="gradient-enabled" type="checkbox" checked>
+              </label>
+              <div class="color-grid" id="fill-color-grid">
+                <label class="color-control"><span id="fill-start-label">Начало</span><span><input id="fill-start" type="color" value="#6d5dfc"><input class="hex-input" data-color-text-for="fill-start" value="#6D5DFC" maxlength="7" aria-label="HEX-код первого цвета" spellcheck="false"></span></label>
+                <label class="color-control" id="fill-end-control"><span>Конец</span><span><input id="fill-end" type="color" value="#29c7ac"><input class="hex-input" data-color-text-for="fill-end" value="#29C7AC" maxlength="7" aria-label="HEX-код второго цвета" spellcheck="false"></span></label>
+              </div>
+              <div id="gradient-options">
+                <label class="range-row">
+                  <span>Направление <output id="gradient-angle-value">25°</output></span>
+                  <input id="gradient-angle" type="range" min="0" max="360" value="25">
+                </label>
+                <div class="gradient-stops">
+                  <span>Положение цветов <output id="gradient-stops-value">0% — 100%</output></span>
+                  <div class="dual-range" id="gradient-stops-track">
+                    <div class="dual-range__fill"></div>
+                    <input id="gradient-start-position" type="range" min="0" max="100" value="0" aria-label="Положение первого цвета">
+                    <input id="gradient-end-position" type="range" min="0" max="100" value="100" aria-label="Положение второго цвета">
+                  </div>
+                </div>
+              </div>
+              <label class="range-row">
+                <span>Прозрачность <output id="opacity-value">100%</output></span>
+                <input id="fill-opacity" type="range" min="10" max="100" value="100">
+              </label>
+              <label class="color-control color-control--wide"><span>Выделение</span><span><input id="selected-color" type="color" value="#ff5f46"><input class="hex-input" data-color-text-for="selected-color" value="#FF5F46" maxlength="7" aria-label="HEX-код цвета выделения" spellcheck="false"></span></label>
+              <div class="palette" aria-label="Готовые палитры">
+                <button data-palette="#6D5DFC,#29C7AC" style="--a:#6D5DFC;--b:#29C7AC" aria-label="Фиолетовый и мятный"></button>
+                <button data-palette="#F97316,#FACC15" style="--a:#F97316;--b:#FACC15" aria-label="Оранжевый и жёлтый"></button>
+                <button data-palette="#0F172A,#475569" style="--a:#0F172A;--b:#475569" aria-label="Графитовый"></button>
+                <button data-palette="#2563EB,#7DD3FC" style="--a:#2563EB;--b:#7DD3FC" aria-label="Синий и голубой"></button>
+                <button data-palette="#E11D48,#F9A8D4" style="--a:#E11D48;--b:#F9A8D4" aria-label="Розовый"></button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="control-section" data-section="labels">
+          <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-labels"><span>Границы и подписи</span><span class="section-number">02</span><span class="section-chevron" aria-hidden="true">⌄</span></button>
+          <div class="section-body" id="section-labels">
+            <div class="section-body__inner">
+              <label class="switch-row"><span>Границы регионов</span><input class="switch" id="borders-enabled" type="checkbox" checked></label>
+              <div class="inline-controls" id="border-controls">
+                <label class="mini-color"><input id="border-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="border-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код границ" spellcheck="false"></label>
+                <label class="number-control"><input id="border-width" type="number" min="0.2" max="4" step="0.2" value="0.8"><span>px</span></label>
+              </div>
+              <label class="switch-row"><span>Названия регионов</span><input class="switch" id="region-labels-enabled" type="checkbox"></label>
+              <div class="segmented segmented--sub" id="region-labels-mode" hidden>
+                <button class="is-active" data-labels-mode="all">Все, что помещаются</button>
+                <button data-labels-mode="selected">Только выбранные</button>
+              </div>
+              <label class="switch-row"><span>Подписи городов</span><input class="switch" id="city-labels-enabled" type="checkbox" checked></label>
+              <p class="microcopy" id="city-labels-hint">Подписи расставляются автоматически, чтобы не перекрываться. Любую можно перетащить мышью; двойной клик возвращает её на место.</p>
+              <label class="color-control color-control--wide"><span>Маркеры городов</span><span><input id="marker-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="marker-color" value="#171717" maxlength="7" aria-label="HEX-код маркеров" spellcheck="false"></span></label>
+              <label class="range-row"><span>Размер маркера <output id="marker-size-value">6</output></span><input id="marker-size" type="range" min="3" max="12" value="6"></label>
+            </div>
+          </div>
+        </section>
+
+        <section class="control-section" data-section="projection">
+          <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-projection"><span>Проекция</span><span class="section-number">03</span><span class="section-chevron" aria-hidden="true">⌄</span></button>
+          <div class="section-body" id="section-projection">
+            <div class="section-body__inner">
+              <div class="projection-grid">
+                <button class="is-active" data-projection="conic" title="Равновеликая проекция, оптимальная для России"><i class="projection-icon projection-icon--conic"></i><span>Атласная</span></button>
+                <button data-projection="mercator" title="Привычная проекция веб-карт, увеличивает северные территории"><i class="projection-icon projection-icon--flat"></i><span>Меркатор</span></button>
+                <button data-projection="globe" title="Широкоугольное искажение: центр крупнее, края компактнее"><i class="projection-icon projection-icon--globe"></i><span>Линза</span></button>
+              </div>
+              <p class="microcopy projection-help" id="projection-help">Равновеликая проекция: площади регионов сравниваются корректнее.</p>
+              <label class="range-row"><span>Поворот <output id="rotation-value">0°</output></span><input id="rotation" type="range" min="-45" max="45" value="0"></label>
+              <label class="range-row globe-only" hidden><span>Сила линзы <output id="lens-strength-value">55%</output></span><input id="lens-strength" type="range" min="0" max="100" value="55"></label>
+            </div>
+          </div>
+        </section>
+
+        <section class="control-section" data-section="slide">
+          <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-slide"><span>Слайд</span><span class="section-number">04</span><span class="section-chevron" aria-hidden="true">⌄</span></button>
+          <div class="section-body" id="section-slide">
+            <div class="section-body__inner">
+              <label class="switch-row"><span>Показывать рамку</span><input class="switch" id="frame-enabled" type="checkbox" checked></label>
+              <div class="segmented" id="ratio-control">
+                <button class="is-active" data-ratio="16:9">16:9</button>
+                <button data-ratio="4:3">4:3</button>
+              </div>
+              <label class="color-control color-control--wide"><span>Фон слайда</span><span><input id="background-color" type="color" value="#f7f7fb"><input class="hex-input" data-color-text-for="background-color" value="#F7F7FB" maxlength="7" aria-label="HEX-код фона" spellcheck="false"></span></label>
+              <label class="switch-row"><span>Прозрачный фон</span><input class="switch" id="transparent-background" type="checkbox"></label>
+              <p class="microcopy" id="crop-note">Экспортируется весь слайд выбранного формата.</p>
+            </div>
+          </div>
+        </section>
+
+        <footer class="inspector-footer">
+          <span>89 субъектов · данные хранятся локально</span>
+        </footer>
+      </aside>
+    </div>
+  </div>
+
+  <input class="visually-hidden" id="project-file-input" type="file" accept="application/json,.json" tabindex="-1">
+
+  <script src="lib/d3.v7.min.js"></script>
+  <script src="lib/topojson-client.min.js"></script>
+  <script src="lib/pptxgen.bundle.js"></script>
+  <script src="data/regions.topojson.js"></script>
+  <script src="data/cities.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
