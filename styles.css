@@ -55,7 +55,9 @@ button { color: inherit; }
 .icon-button:hover { background: #f3f2ef; }
 .icon-button:disabled { color: #c9c6c0; cursor: default; background: transparent; }
 .history-buttons { display: flex; gap: 2px; margin-right: 4px; }
-.history-buttons .icon-button { width: 32px; height: 32px; font-size: 18px; }
+.history-button { display: grid; place-items: center; width: 32px; height: 32px; }
+.history-button::before { content: ""; width: 16px; height: 16px; background: currentColor; -webkit-mask: url("icons/undo-alt.svg") center / contain no-repeat; mask: url("icons/undo-alt.svg") center / contain no-repeat; }
+.history-button--redo::before { transform: scaleX(-1); }
 .export-menu { position: relative; }
 .export-popover { position: absolute; right: 0; top: calc(100% + 8px); width: 296px; padding: 7px; border: 1px solid var(--line); border-radius: 13px; background: #fff; box-shadow: var(--shadow); }
 .export-popover button { display: grid; grid-template-columns: 64px 1fr; align-items: center; width: 100%; padding: 10px; text-align: left; border: 0; border-radius: 8px; background: transparent; cursor: pointer; }
