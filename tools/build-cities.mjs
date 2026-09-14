@@ -23,6 +23,20 @@ const COUNTRIES = ["Q159", "Q212"]; // Russia, Ukraine
 // Places worth having that Wikidata types differently (Зеленоград is an okrug of Moscow).
 const EXTRA_ITEMS = ["Q207695"];
 const MIN_POPULATION = 10000;
+// Wikidata's Russian labels for Donbass follow Ukraine's 2016 renamings; the map follows Russian law, which uses the
+// names fixed in the DNR/LNR administrative-territorial acts. Keyed by Wikidata id.
+const NAME_OVERRIDES = {
+  Q706857: "Артёмовск",         // Бахмут
+  Q570563: "Юнокоммунаровск",   // Бунге
+  Q1025487: "Комсомольское",    // Кальмиусское
+  Q2234641: "Красный Лиман",    // Лиман
+  Q45872: "Димитров",           // Мирноград
+  Q1000446: "Красноармейск",    // Покровск
+  Q2416525: "Дзержинск",        // Торецк
+  Q664445: "Червонопартизанск", // Вознесеновка
+  Q2234599: "Кировск",          // Голубовка
+  Q2415307: "Петровское"        // Петрово-Красноселье
+};
 
 const topoSource = readFileSync(join(root, "data/regions.topojson.js"), "utf8");
 const topo = JSON.parse(topoSource.slice(topoSource.indexOf("{")).replace(/;\s*$/, ""));
@@ -138,7 +152,7 @@ for (const item of items.values()) {
     if (!near) { outside++; continue; }
   }
   const region = regionOf(item) || nearestRegion(item.lon, item.lat);
-  cities.push({ name: item.name, lon: Math.round(item.lon * 1e5) / 1e5, lat: Math.round(item.lat * 1e5) / 1e5, population: latestPopulation(item.pops), region: region.properties.id, wd: item.wd });
+  cities.push({ name: NAME_OVERRIDES[item.wd] || item.name, lon: Math.round(item.lon * 1e5) / 1e5, lat: Math.round(item.lat * 1e5) / 1e5, population: latestPopulation(item.pops), region: region.properties.id, wd: item.wd });
 }
 cities.sort((a, b) => a.name.localeCompare(b.name, "ru") || b.population - a.population);
 
