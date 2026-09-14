@@ -174,16 +174,20 @@
       };
     });
     const result = capitals.slice();
+    const byId = new Map(items.map(item => [item.properties.id, item]));
 
     (window.RU_CITIES || []).forEach(city => {
       const twin = capitals.find(existing => normalize(existing.name) === normalize(city.name)
         && Math.abs(existing.lon - city.lon) < .35 && Math.abs(existing.lat - city.lat) < .25);
       if (twin) { twin.population = Math.max(twin.population, city.population || 0); return; }
       if ((city.population || 0) < MIN_CITY_POPULATION) return;
-      const feature = items.find(item => d3.geoContains(item, [city.lon, city.lat])) || nearestFeature(items, city.lon, city.lat);
+      const feature = (city.region && byId.get(city.region))
+        || items.find(item => d3.geoContains(item, [city.lon, city.lat])) || nearestFeature(items, city.lon, city.lat);
       const p = feature.properties;
       result.push({
-        id: slug(`${city.name}-${city.lon}-${city.lat}`), name: city.name, lon: city.lon, lat: city.lat,
+        // Wikidata ids keep selections stable across rebuilds even when coordinates get refined.
+        id: city.wd ? `${slug(city.name)}-${city.wd.toLowerCase()}` : slug(`${city.name}-${city.lon}-${city.lat}`),
+        name: city.name, lon: city.lon, lat: city.lat,
         region: p.name, regionId: p.id, fd: p.fd, population: city.population || 0, isCapital: false
       });
     });
