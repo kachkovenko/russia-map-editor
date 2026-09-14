@@ -28,25 +28,29 @@
   const defaults = {
     tab: "regions", gradient: true, fillStart: "#6d5dfc", fillEnd: "#29c7ac",
     angle: 25, gradientStart: 0, gradientEnd: 100, opacity: 1, selectedColor: "#ff5f46", borders: true, borderColor: "#ffffff",
-    borderWidth: 0.8, regionLabels: false, regionLabelsMode: "all", cityLabels: true, markerColor: "#171717", markerSize: 6,
+    borderWidth: 0.8, regionLabels: false, regionLabelsMode: "all", regionFontSize: 11, cityLabels: true, cityFontSize: 12,
+    leaderLines: true, labelHalo: true, labelHaloWidth: 1.5, markerColor: "#171717", markerShape: "circle", markerSize: 6,
     projection: "conic", rotation: 0, frame: true, ratio: "16:9",
     background: "#f7f7fb", transparent: false, zoom: 1, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, projectCompanion: true
   };
   const PROJECT_SETTING_KEYS = Object.freeze([
     "gradient", "fillStart", "fillEnd", "angle", "gradientStart", "gradientEnd", "opacity", "selectedColor", "borders",
-    "borderColor", "borderWidth", "regionLabels", "regionLabelsMode", "cityLabels", "markerColor", "markerSize",
+    "borderColor", "borderWidth", "regionLabels", "regionLabelsMode", "regionFontSize", "cityLabels", "cityFontSize",
+    "leaderLines", "labelHalo", "labelHaloWidth", "markerColor", "markerShape", "markerSize",
     "projection", "rotation", "frame", "ratio", "background", "transparent", "zoom", "viewZoom", "panX", "panY", "lensStrength",
     "projectCompanion"
   ]);
   const VIEW_KEYS = Object.freeze(["viewZoom", "panX", "panY"]);
-  const BOOLEAN_SETTINGS = new Set(["gradient", "borders", "regionLabels", "cityLabels", "frame", "transparent", "projectCompanion"]);
+  const BOOLEAN_SETTINGS = new Set(["gradient", "borders", "regionLabels", "cityLabels", "leaderLines", "labelHalo", "frame", "transparent", "projectCompanion"]);
   const COLOR_SETTINGS = new Set(["fillStart", "fillEnd", "selectedColor", "borderColor", "markerColor", "background"]);
   const NUMBER_RANGES = Object.freeze({
     angle: [0, 360], gradientStart: [0, 100], gradientEnd: [0, 100], opacity: [.1, 1], borderWidth: [.2, 4], markerSize: [3, 12],
+    regionFontSize: [8, 28], cityFontSize: [8, 28], labelHaloWidth: [.5, 4],
     rotation: [-45, 45], zoom: [.55, 2.5], viewZoom: [.25, 4], panX: [-10000, 10000], panY: [-10000, 10000], lensStrength: [0, 100]
   });
   const ENUM_SETTINGS = Object.freeze({
-    projection: ["conic", "mercator", "globe"], ratio: ["16:9", "4:3"], tab: ["regions", "cities", "selected"], regionLabelsMode: ["all", "selected"]
+    projection: ["conic", "mercator", "globe"], ratio: ["16:9", "4:3"], tab: ["regions", "cities", "selected"], regionLabelsMode: ["all", "selected"],
+    markerShape: ["circle", "square", "diamond", "pin"]
   });
   const state = { ...defaults, query: "", selectedRegions: new Set(), selectedCities: new Set(), cityLabelOffsets: {} };
 
@@ -83,6 +87,16 @@
   let labelGeometryFresh = false;
   const activePointers = new Map();
   const history = { past: [], future: [], current: null, burst: null };
+  const MAP_FONT = "Inter, Arial, sans-serif";
+  const measureContext = document.createElement("canvas").getContext("2d");
+  const measureCache = new Map();
+  let shownRegionLabels = new Set();
+  // Candidate directions for a city label in order of preference: right, left, above, below, diagonals, then the in-betweens.
+  const LABEL_DIRECTIONS = Object.freeze([0, 180, -90, 90, -45, -135, 45, 135, -22.5, 22.5, -157.5, 157.5, -67.5, 67.5, -112.5, 112.5].map(deg => {
+    const a = deg * Math.PI / 180;
+    const ux = Math.cos(a), uy = Math.sin(a);
+    return { ux, uy, anchor: ux > .3 ? "start" : ux < -.3 ? "end" : "middle" };
+  }));
 
   init();
 
@@ -125,8 +139,10 @@
       .on("mousemove", cityHover)
       .on("mouseleave", hideTooltip)
       .on("click", (event, d) => { event.stopPropagation(); if (Date.now() >= suppressSelectionUntil) toggleCity(d.id, true); });
+    cityGroups.append("line").attr("class", "city-leader");
     cityGroups.append("circle").attr("class", "city-marker__ring");
-    cityGroups.append("circle").attr("class", "city-marker");
+    cityGroups.append("path").attr("class", "city-marker");
+    cityGroups.append("circle").attr("class", "city-marker__eye");
     cityGroups.append("text").attr("class", "city-label").text(d => d.name)
       .on("pointerdown", startLabelDrag)
       .on("click", event => event.stopPropagation())
@@ -270,7 +286,8 @@
 
     d3.select("#export-background")
       .attr("x", 0).attr("y", 0).attr("width", width).attr("height", height)
-      .attr("fill", state.background).attr("fill-opacity", state.transparent ? 0 : 1);
+      .attr("fill", state.background).attr("fill-opacity", state.transparent ? 0 : 1)
+      .attr("display", state.frame ? null : "none");
 
     const landFill = state.gradient ? "url(#land-gradient)" : state.fillStart;
     regionPaths
@@ -285,38 +302,49 @@
       .attr("stroke-width", Math.max(1.1, state.borderWidth * 1.35))
       .attr("display", state.borders ? null : "none");
 
-    const haloStroke = state.transparent ? "rgba(255,255,255,.8)" : state.background;
-    const labelSize = regionLabelSize();
-    const shownLabels = layoutRegionLabels();
+    const halo = state.labelHalo ? state.labelHaloWidth * 2 : 0;
+    const haloStroke = halo ? haloColor() : "none";
+    shownRegionLabels = layoutLabels();
     labelGroups
-      .attr("display", d => shownLabels.has(d.properties.id) ? null : "none")
-      .attr("transform", d => shownLabels.has(d.properties.id) ? `translate(${d.centroid[0]},${d.centroid[1]})` : "translate(-9999,-9999)")
-      .attr("font-size", labelSize)
+      .attr("display", d => shownRegionLabels.has(d.properties.id) ? null : "none")
+      .attr("transform", d => shownRegionLabels.has(d.properties.id) ? `translate(${d.centroid[0]},${d.centroid[1]})` : "translate(-9999,-9999)")
+      .attr("font-size", state.regionFontSize)
       .attr("fill", darken(state.fillStart, .7))
       .attr("stroke", haloStroke)
-      .attr("stroke-width", 3);
+      .attr("stroke-width", halo);
 
-    layoutCityLabels();
-    const cityFont = cityLabelSize();
+    const geo = markerGeometry();
+    const markerD = markerPath(geo.shape, geo.r);
     cityGroups.each(function (d) {
       const visible = state.selectedCities.has(d.id) && !!d.point;
       const group = d3.select(this).attr("display", visible ? null : "none");
       if (!visible) return;
       group.attr("transform", `translate(${d.point[0]},${d.point[1]})`);
-      group.select(".city-marker__ring").attr("r", state.markerSize * 1.25).attr("stroke", state.markerColor);
-      group.select(".city-marker").attr("r", state.markerSize).attr("fill", state.markerColor).attr("stroke", "#fff").attr("stroke-width", 1.5);
+      group.select(".city-marker__ring").attr("display", geo.shape === "circle" ? null : "none")
+        .attr("r", geo.reach).attr("stroke", state.markerColor);
+      group.select(".city-marker").attr("d", markerD).attr("fill", state.markerColor)
+        .attr("stroke", "#fff").attr("stroke-width", 1.5).attr("stroke-linejoin", "round");
+      group.select(".city-marker__eye").attr("display", geo.shape === "pin" ? null : "none")
+        .attr("cx", 0).attr("cy", geo.cy).attr("r", geo.r * .38).attr("fill", "#fff");
+      const leader = state.cityLabels ? d.label.leader : null;
+      group.select(".city-leader").attr("display", leader ? null : "none")
+        .attr("x1", leader ? leader.x1 : 0).attr("y1", leader ? leader.y1 : 0)
+        .attr("x2", leader ? leader.x2 : 0).attr("y2", leader ? leader.y2 : 0)
+        .attr("stroke", state.markerColor).attr("stroke-width", 1).attr("stroke-opacity", .85);
       group.select(".city-label")
         .attr("display", state.cityLabels ? null : "none")
         .attr("x", d.label.dx).attr("y", d.label.dy)
         .attr("text-anchor", d.label.anchor)
-        .attr("font-size", cityFont)
+        .attr("font-size", state.cityFontSize)
         .attr("fill", state.markerColor)
         .attr("stroke", haloStroke)
-        .attr("stroke-width", 3)
+        .attr("stroke-width", halo)
         .classed("is-manual", !!state.cityLabelOffsets[d.id]);
     });
 
-    artboard.style.backgroundColor = state.transparent ? "transparent" : state.background;
+    artboard.classList.toggle("is-transparent", state.transparent && state.frame);
+    artboard.style.backgroundColor = state.frame && !state.transparent ? state.background : "";
+    updateCropPreview();
     applyCanvasTransform();
     document.querySelectorAll("[data-projection]").forEach(el => el.classList.toggle("is-active", el.dataset.projection === state.projection));
     document.querySelectorAll("[data-quick-projection]").forEach(el => el.classList.toggle("is-active", (state.projection === "globe" ? "globe" : "conic") === el.dataset.quickProjection));
@@ -326,90 +354,213 @@
 
   // Centroids and bounds are only needed while region labels are on, so they are computed lazily after a reprojection.
   function ensureLabelGeometry() {
-    if (labelGeometryFresh) return;
-    const labelSize = regionLabelSize();
+    const fontSize = state.regionFontSize;
+    if (!labelGeometryFresh) {
+      features.forEach(d => {
+        const c = path.centroid(d);
+        d.centroid = c && isFinite(c[0]) && isFinite(c[1]) ? c : null;
+        const b = path.bounds(d);
+        d.boxWidth = b[1][0] - b[0][0];
+        d.boxHeight = b[1][1] - b[0][1];
+        d.labelFontSize = null;
+      });
+      labelGeometryFresh = true;
+    }
     features.forEach(d => {
-      const c = path.centroid(d);
-      d.centroid = c && isFinite(c[0]) && isFinite(c[1]) ? c : null;
-      const b = path.bounds(d);
-      d.labelWidth = textWidth(shortRegionName(d.properties.name), labelSize);
-      d.labelFits = !!d.centroid && d.labelWidth <= (b[1][0] - b[0][0]) * 1.1 && labelSize * 1.2 <= b[1][1] - b[0][1];
+      if (d.labelFontSize === fontSize) return;
+      d.labelFontSize = fontSize;
+      d.labelWidth = textWidth(shortRegionName(d.properties.name), fontSize);
+      d.labelFits = !!d.centroid && d.labelWidth <= d.boxWidth * 1.1 && fontSize * 1.2 <= d.boxHeight;
     });
-    labelGeometryFresh = true;
   }
 
-  // Selected regions are always labelled; optional labels are dropped when they would overlap something already placed.
-  function layoutRegionLabels() {
-    const shown = new Set();
-    if (!state.regionLabels) return shown;
-    ensureLabelGeometry();
-    const labelSize = regionLabelSize();
+  // Label order: selected regions are always labelled and go first; city labels are packed around them; optional region
+  // labels ("all that fit") take whatever space is left. Returns the set of region ids whose label is shown.
+  function layoutLabels() {
     const occupied = [];
+    const shown = new Set();
+    const fontSize = state.regionFontSize;
     const rectFor = d => ({
-      x1: d.centroid[0] - d.labelWidth / 2, y1: d.centroid[1] - labelSize * .7,
-      x2: d.centroid[0] + d.labelWidth / 2, y2: d.centroid[1] + labelSize * .4
+      x1: d.centroid[0] - d.labelWidth / 2, y1: d.centroid[1] - fontSize * .7,
+      x2: d.centroid[0] + d.labelWidth / 2, y2: d.centroid[1] + fontSize * .4, kind: "label"
     });
-    features.forEach(d => {
-      if (!d.centroid || !state.selectedRegions.has(d.properties.id)) return;
-      shown.add(d.properties.id);
-      occupied.push(rectFor(d));
-    });
-    if (state.regionLabelsMode !== "all") return shown;
-    features.filter(d => d.centroid && d.labelFits && !shown.has(d.properties.id))
-      .sort((a, b) => b.area - a.area)
-      .forEach(d => {
-        const rect = rectFor(d);
-        if (occupied.some(other => intersects(other, rect))) return;
+    // A federal city whose marker is already labelled (Москва, Санкт-Петербург, Севастополь) needs no region label on top.
+    const labelledCities = new Set(state.cityLabels ? cities.filter(c => state.selectedCities.has(c.id) && c.point).map(c => normalize(c.name)) : []);
+    const redundant = d => labelledCities.has(normalize(shortRegionName(d.properties.name)));
+    if (state.regionLabels) {
+      ensureLabelGeometry();
+      features.forEach(d => {
+        if (!d.centroid || !state.selectedRegions.has(d.properties.id) || redundant(d)) return;
         shown.add(d.properties.id);
-        occupied.push(rect);
+        occupied.push(rectFor(d));
       });
+    }
+    layoutCityLabels(occupied);
+    if (state.regionLabels && state.regionLabelsMode === "all") {
+      features.filter(d => d.centroid && d.labelFits && !shown.has(d.properties.id) && !redundant(d))
+        .sort((a, b) => b.area - a.area)
+        .forEach(d => {
+          const rect = rectFor(d);
+          if (occupied.some(other => intersects(other, rect))) return;
+          shown.add(d.properties.id);
+          occupied.push(rect);
+        });
+    }
     return shown;
   }
 
-  function regionLabelSize() { return Math.max(10, width / 145); }
-  function cityLabelSize() { return Math.max(11, width / 130); }
-  function textWidth(text, fontSize) { return text.length * fontSize * .56; }
+  function haloColor() { return state.transparent ? "#ffffff" : state.background; }
+
+  // Real text metrics from a canvas using the map's font stack, so placement and PPTX boxes match what is drawn.
+  function textWidth(text, fontSize) {
+    const key = `${fontSize}|${text}`;
+    let w = measureCache.get(key);
+    if (w === undefined) {
+      measureContext.font = `bold ${fontSize}px ${MAP_FONT}`;
+      w = measureContext.measureText(text).width;
+      measureCache.set(key, w);
+    }
+    return w;
+  }
+
+  // Marker geometry: `cx/cy` is the visual centre a label attaches to (a pin's tip sits on the coordinate, its body above),
+  // `reach` the distance from that centre to the marker edge, `box` the rectangle the marker occupies.
+  function markerGeometry() {
+    const r = state.markerSize;
+    const shape = state.markerShape;
+    if (shape === "pin") return { shape, r, cx: 0, cy: -1.6 * r, reach: r, box: [-r, -2.6 * r, r, 0] };
+    const reach = shape === "circle" ? r * 1.25 : r * 1.2;
+    return { shape, r, cx: 0, cy: 0, reach, box: [-reach, -reach, reach, reach] };
+  }
+
+  function markerPath(shape, r) {
+    switch (shape) {
+      case "square": { const s = r * .9; return `M${-s},${-s}h${2 * s}v${2 * s}h${-2 * s}Z`; }
+      case "diamond": { const s = r * 1.2; return `M0,${-s}L${s},0L0,${s}L${-s},0Z`; }
+      case "pin": return `M0,0L${-.8 * r},${-r}A${r},${r} 0 1 1 ${.8 * r},${-r}Z`;
+      default: return `M${-r},0a${r},${r} 0 1 0 ${2 * r},0a${r},${r} 0 1 0 ${-2 * r},0Z`;
+    }
+  }
+
+  // Screen-only outline of the area that a frameless export will be cropped to.
+  function updateCropPreview() {
+    const preview = d3.select("#crop-preview");
+    if (state.frame) { preview.attr("display", "none"); return; }
+    const b = paddedBounds(document.getElementById("export-content").getBBox(), 26);
+    preview.attr("display", null).attr("x", b.x).attr("y", b.y).attr("width", b.width).attr("height", b.height)
+      .attr("fill", state.transparent ? "url(#checker)" : state.background)
+      .attr("stroke", "#a3a09a").attr("stroke-width", 1).attr("stroke-dasharray", "6 4").attr("vector-effect", "non-scaling-stroke");
+  }
 
   // Greedy placement: bigger cities pick first; try right, left, above, below; manual offsets always win.
-  function layoutCityLabels() {
-    const fontSize = cityLabelSize();
-    const gap = state.markerSize + 5;
-    const ring = state.markerSize * 1.25;
-    const occupied = [];
+  function layoutCityLabels(occupied) {
+    const fontSize = state.cityFontSize;
+    const geo = markerGeometry();
+    const gap = geo.reach + 4;
     const visible = cities.filter(city => state.selectedCities.has(city.id) && city.point);
-    visible.forEach(city => occupied.push({ x1: city.point[0] - ring, y1: city.point[1] - ring, x2: city.point[0] + ring, y2: city.point[1] + ring }));
+    visible.forEach(city => occupied.push({
+      x1: city.point[0] + geo.box[0], y1: city.point[1] + geo.box[1], x2: city.point[0] + geo.box[2], y2: city.point[1] + geo.box[3], kind: "marker"
+    }));
     visible.sort((a, b) => b.population - a.population);
-    const candidates = [
-      { dx: gap, dy: fontSize * .35, anchor: "start" },
-      { dx: -gap, dy: fontSize * .35, anchor: "end" },
-      { dx: 0, dy: -(gap + 2), anchor: "middle" },
-      { dx: 0, dy: gap + fontSize * .85, anchor: "middle" }
+    const distances = state.leaderLines
+      ? [gap, gap + fontSize * 1.6, gap + fontSize * 3.4, gap + fontSize * 5.5, gap + fontSize * 8, gap + fontSize * 11]
+      : [gap];
+    // Constraints relax in stages when the map is crowded: first everything must be clear, then leaders may cross other
+    // markers, then a label may touch another marker's padding. Text over text is only the last resort.
+    const passes = [
+      { labelAvoids: () => true, leaderAvoids: () => true },
+      { labelAvoids: () => true, leaderAvoids: r => r.kind === "label" },
+      { labelAvoids: r => r.kind === "label", leaderAvoids: () => false }
     ];
     visible.forEach(city => {
       const w = textWidth(city.name, fontSize);
-      const h = fontSize * 1.15;
       const manual = state.cityLabelOffsets[city.id];
-      let choice = manual ? { dx: manual[0], dy: manual[1], anchor: "start" } : null;
-      if (!choice && state.cityLabels) {
-        choice = candidates.find(candidate => {
-          const rect = labelRect(city.point, candidate, w, h);
-          if (state.frame && (rect.x1 < 0 || rect.y1 < 0 || rect.x2 > width || rect.y2 > height)) return false;
-          return !occupied.some(other => intersects(other, rect));
-        });
+      let placement = null;
+      if (manual) {
+        placement = { dx: manual[0], dy: manual[1], anchor: "start", leader: null };
+        if (state.leaderLines) placement.leader = manualLeader(geo, placement, w, fontSize, gap);
+      } else if (state.cityLabels) {
+        placement = findPlacement(city, geo, gap, distances, fontSize, w, occupied, passes);
       }
-      city.label = choice || candidates[0];
-      if (state.cityLabels) occupied.push(labelRect(city.point, city.label, w, h));
+      if (!placement) placement = labelPlacement(geo, LABEL_DIRECTIONS[0], gap, fontSize);
+      city.label = placement;
+      if (state.cityLabels) occupied.push({ ...labelRect(city.point, placement, w, fontSize), kind: "label" });
     });
   }
 
-  function labelRect(point, placement, w, h) {
+  function findPlacement(city, geo, gap, distances, fontSize, w, occupied, passes) {
+    for (const pass of passes) {
+      for (const distance of distances) {
+        for (const dir of LABEL_DIRECTIONS) {
+          const candidate = labelPlacement(geo, dir, distance, fontSize);
+          const rect = labelRect(city.point, candidate, w, fontSize);
+          if (state.frame && (rect.x1 < 0 || rect.y1 < 0 || rect.x2 > width || rect.y2 > height)) continue;
+          if (occupied.some(other => pass.labelAvoids(other) && intersects(other, rect))) continue;
+          if (distance > gap) {
+            const leader = leaderFor(geo, dir, distance);
+            // Skip the leader's first stretch (it starts inside this city's own marker box) and check the rest is clear.
+            const sx = city.point[0] + leader.x1 + (leader.x2 - leader.x1) * .25;
+            const sy = city.point[1] + leader.y1 + (leader.y2 - leader.y1) * .25;
+            const ex = city.point[0] + leader.x2, ey = city.point[1] + leader.y2;
+            if (occupied.some(other => pass.leaderAvoids(other) && segmentIntersectsRect(sx, sy, ex, ey, other))) continue;
+            candidate.leader = leader;
+          }
+          return candidate;
+        }
+      }
+    }
+    return null;
+  }
+
+  // Baseline position (relative to the city point) of a label attached `distance` away from the marker centre in direction `dir`.
+  function labelPlacement(geo, dir, distance, fontSize) {
+    const ax = geo.cx + dir.ux * distance;
+    const ay = geo.cy + dir.uy * distance;
+    // The label box sits just outside the attach point: centred for sideways placements, above/below for vertical ones.
+    return { dx: ax, dy: ay + dir.uy * fontSize * .5 + fontSize * .25, anchor: dir.anchor, leader: null };
+  }
+
+  function leaderFor(geo, dir, distance) {
+    return {
+      x1: geo.cx + dir.ux * geo.reach, y1: geo.cy + dir.uy * geo.reach,
+      x2: geo.cx + dir.ux * (distance - 2), y2: geo.cy + dir.uy * (distance - 2)
+    };
+  }
+
+  // A hand-placed label gets a leader once it sits clearly away from the marker.
+  function manualLeader(geo, placement, w, fontSize, gap) {
+    const rect = labelRect([0, 0], placement, w, fontSize);
+    const nx = clamp(geo.cx, rect.x1, rect.x2);
+    const ny = clamp(geo.cy, rect.y1, rect.y2);
+    const distance = Math.hypot(nx - geo.cx, ny - geo.cy);
+    if (distance <= gap + 2) return null;
+    const ux = (nx - geo.cx) / distance;
+    const uy = (ny - geo.cy) / distance;
+    return { x1: geo.cx + ux * geo.reach, y1: geo.cy + uy * geo.reach, x2: nx - ux * 2, y2: ny - uy * 2 };
+  }
+
+  function labelRect(point, placement, w, fontSize) {
     const bx = point[0] + placement.dx;
     const by = point[1] + placement.dy;
     const x1 = placement.anchor === "start" ? bx : placement.anchor === "end" ? bx - w : bx - w / 2;
-    return { x1, y1: by - h * .8, x2: x1 + w, y2: by + h * .25 };
+    return { x1, y1: by - fontSize * .75, x2: x1 + w, y2: by + fontSize * .25 };
   }
 
   function intersects(a, b) { return a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1; }
+
+  // Liang–Barsky segment/rectangle test.
+  function segmentIntersectsRect(x1, y1, x2, y2, r) {
+    let t0 = 0, t1 = 1;
+    const dx = x2 - x1, dy = y2 - y1;
+    const edges = [[-dx, x1 - r.x1], [dx, r.x2 - x1], [-dy, y1 - r.y1], [dy, r.y2 - y1]];
+    for (const [p, q] of edges) {
+      if (p === 0) { if (q < 0) return false; continue; }
+      const t = q / p;
+      if (p < 0) { if (t > t1) return false; if (t > t0) t0 = t; }
+      else { if (t < t0) return false; if (t < t1) t1 = t; }
+    }
+    return true;
+  }
 
   function startLabelDrag(event, d) {
     if (event.button !== 0 && event.pointerType === "mouse") return;
@@ -442,7 +593,7 @@
     if (!drag.moved) return;
     let x = Number(drag.element.getAttribute("x"));
     const y = Number(drag.element.getAttribute("y"));
-    const length = drag.element.getComputedTextLength ? drag.element.getComputedTextLength() : textWidth(drag.city.name, cityLabelSize());
+    const length = drag.element.getComputedTextLength ? drag.element.getComputedTextLength() : textWidth(drag.city.name, state.cityFontSize);
     if (drag.anchor === "end") x -= length; else if (drag.anchor === "middle") x -= length / 2;
     state.cityLabelOffsets[drag.city.id] = [
       clamp(Math.round(x * 10) / 10, -LABEL_OFFSET_LIMIT, LABEL_OFFSET_LIMIT),
@@ -695,8 +846,17 @@
       state.regionLabelsMode = button.dataset.labelsMode;
       updateLabelModeControls(); restyle(); saveState();
     }));
-    bindCheck("city-labels-enabled", "cityLabels");
+    bindRange("region-font-size", "regionFontSize", "region-font-size-value", v => `${v} px`, Number);
+    bindCheck("city-labels-enabled", "cityLabels", updateLabelModeControls);
+    bindRange("city-font-size", "cityFontSize", "city-font-size-value", v => `${v} px`, Number);
+    bindCheck("leader-lines", "leaderLines");
+    bindCheck("label-halo", "labelHalo", updateLabelModeControls);
+    bindRange("label-halo-width", "labelHaloWidth", "label-halo-width-value", v => `${String(v).replace(".", ",")} px`, Number);
     bindColor("marker-color", "markerColor");
+    document.querySelectorAll("[data-marker-shape]").forEach(button => button.addEventListener("click", () => {
+      state.markerShape = button.dataset.markerShape;
+      updateLabelModeControls(); restyle(); saveState();
+    }));
     bindRange("marker-size", "markerSize", "marker-size-value", v => v, Number);
     bindRange("rotation", "rotation", "rotation-value", v => `${v}°`, Number, true);
     bindRange("lens-strength", "lensStrength", "lens-strength-value", v => `${v}%`, Number, true);
@@ -1005,8 +1165,11 @@
   }
 
   function updateLabelModeControls() {
-    document.getElementById("region-labels-mode").hidden = !state.regionLabels;
+    document.getElementById("region-label-options").hidden = !state.regionLabels;
+    document.getElementById("city-label-options").hidden = !state.cityLabels;
+    document.getElementById("halo-options").hidden = !state.labelHalo;
     document.querySelectorAll("[data-labels-mode]").forEach(el => el.classList.toggle("is-active", el.dataset.labelsMode === state.regionLabelsMode));
+    document.querySelectorAll("[data-marker-shape]").forEach(el => el.classList.toggle("is-active", el.dataset.markerShape === state.markerShape));
   }
 
   function bindRange(id, key, outputId, format, transform, reprojects) {
@@ -1034,6 +1197,8 @@
       "fill-opacity": Math.round(state.opacity * 100), "selected-color": state.selectedColor,
       "borders-enabled": state.borders, "border-color": state.borderColor, "border-width": state.borderWidth,
       "region-labels-enabled": state.regionLabels, "city-labels-enabled": state.cityLabels, "marker-color": state.markerColor,
+      "region-font-size": state.regionFontSize, "city-font-size": state.cityFontSize, "leader-lines": state.leaderLines,
+      "label-halo": state.labelHalo, "label-halo-width": state.labelHaloWidth,
       "marker-size": state.markerSize, "rotation": state.rotation, "lens-strength": state.lensStrength, "frame-enabled": state.frame,
       "background-color": state.background, "transparent-background": state.transparent,
       "project-companion": state.projectCompanion
@@ -1053,6 +1218,9 @@
     document.getElementById("gradient-stops-value").textContent = `${state.gradientStart}% — ${state.gradientEnd}%`;
     document.getElementById("opacity-value").textContent = `${Math.round(state.opacity * 100)}%`;
     document.getElementById("marker-size-value").textContent = state.markerSize;
+    document.getElementById("region-font-size-value").textContent = `${state.regionFontSize} px`;
+    document.getElementById("city-font-size-value").textContent = `${state.cityFontSize} px`;
+    document.getElementById("label-halo-width-value").textContent = `${String(state.labelHaloWidth).replace(".", ",")} px`;
     document.getElementById("rotation-value").textContent = `${Math.round(state.rotation)}°`;
     document.getElementById("lens-strength-value").textContent = `${Math.round(state.lensStrength)}%`;
     document.getElementById("border-controls").style.opacity = state.borders ? 1 : .4;
@@ -1302,7 +1470,7 @@
     return ["__proto__", "prototype", "constructor"].some(key => Object.prototype.hasOwnProperty.call(value, key));
   }
 
-  function getExportSvg({ omitCityLabels = false } = {}) {
+  function getExportSvg({ omitLabels = false } = {}) {
     const source = svg.node();
     const clone = source.cloneNode(true);
     const bounds = state.frame ? { x: 0, y: 0, width, height } : paddedBounds(document.getElementById("export-content").getBBox(), 26);
@@ -1310,17 +1478,20 @@
     clone.setAttribute("viewBox", `${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`);
     clone.setAttribute("width", bounds.width);
     clone.setAttribute("height", bounds.height);
+    clone.querySelector("#crop-preview").remove();
+    clone.querySelector("#checker").remove();
     const bg = clone.querySelector("#export-background");
+    bg.removeAttribute("display");
     bg.setAttribute("x", bounds.x); bg.setAttribute("y", bounds.y); bg.setAttribute("width", bounds.width); bg.setAttribute("height", bounds.height);
     if (!state.frame && state.transparent) bg.setAttribute("fill-opacity", "0");
-    if (omitCityLabels) clone.querySelectorAll(".city-label").forEach(label => label.remove());
+    if (omitLabels) clone.querySelectorAll(".city-label, .region-label").forEach(label => label.remove());
     clone.querySelectorAll("[display='none']").forEach(el => el.remove());
     clone.querySelectorAll("[tabindex], [role], [aria-label]").forEach(el => {
       el.removeAttribute("tabindex"); el.removeAttribute("role"); el.removeAttribute("aria-label");
     });
     clone.querySelectorAll(".is-hover, .is-selected, .is-manual").forEach(el => el.classList.remove("is-hover", "is-selected", "is-manual"));
     const style = document.createElementNS(SVG_NS, "style");
-    style.textContent = `text{font-family:Inter,Arial,sans-serif;font-weight:650}.region{vector-effect:non-scaling-stroke}.country-outline{fill:none;vector-effect:non-scaling-stroke}.region-label{text-anchor:middle}.region-label,.city-label{paint-order:stroke;stroke-linejoin:round}.city-marker__ring{fill:none;stroke-width:1;opacity:.3}.city-marker{filter:url(#marker-shadow)}`;
+    style.textContent = `text{font-family:${MAP_FONT};font-weight:bold}.region{vector-effect:non-scaling-stroke}.country-outline{fill:none;vector-effect:non-scaling-stroke}.region-label{text-anchor:middle}.region-label,.city-label{paint-order:stroke;stroke-linejoin:round}.city-marker__ring{fill:none;stroke-width:1;opacity:.3}.city-marker{filter:url(#marker-shadow)}.city-leader{stroke-linecap:round}`;
     clone.insertBefore(style, clone.firstChild);
     return { xml: new XMLSerializer().serializeToString(clone), width: bounds.width, height: bounds.height, bounds };
   }
@@ -1385,7 +1556,7 @@
 
   async function exportPptx() {
     if (!window.PptxGenJS) throw new Error("Модуль PPTX не загружен");
-    const vector = getExportSvg({ omitCityLabels: true });
+    const vector = getExportSvg({ omitLabels: true });
     const dataUri = svgToDataUri(vector.xml);
     const pptx = new PptxGenJS();
     pptx.author = "Редактор карты России · map.kachkovenko.com";
@@ -1406,7 +1577,7 @@
       else { h = slideH; w = h * imageRatio; x = (slideW - w) / 2; }
     }
     slide.addImage({ data: dataUri, x, y, w, h, altText: "Карта России" });
-    addEditableCityLabels(slide, vector, { x, y, w, h, slideW, slideH });
+    addEditableLabels(slide, vector, { x, y, w, h, slideW, slideH });
     slide.addNotes("Создано в редакторе карты России (map.kachkovenko.com). Состав субъектов — по статье 65 Конституции РФ. Часть показанных границ международно оспаривается.");
     const [pptxBlob, pngFallback] = await Promise.all([
       pptx.write({ outputType: "blob", compression: true }),
@@ -1416,34 +1587,48 @@
     downloadBlob(compatiblePptx, exportFilename("pptx"));
   }
 
-  function addEditableCityLabels(slide, vector, imageBox) {
-    if (!state.cityLabels || !state.selectedCities.size) return;
+  // Every label becomes a native PowerPoint text box: font, size, colour, alignment and the halo (as a text glow) are
+  // real text attributes, so what the user sees on the map is what they can edit on the slide.
+  function addEditableLabels(slide, vector, imageBox) {
     const { bounds } = vector;
     const { x, y, w, h, slideW, slideH } = imageBox;
     const unit = w / bounds.width; // inches per SVG unit
-    const svgFontPx = cityLabelSize();
-    const fontSize = clamp(svgFontPx * unit * 72, 7.5, 18);
-    cities.forEach(city => {
-      if (!state.selectedCities.has(city.id) || !city.point || !city.label) return;
-      const markerX = x + (city.point[0] - bounds.x) * unit;
-      const markerY = y + (city.point[1] - bounds.y) * unit;
-      if (markerX < x || markerX > x + w || markerY < y || markerY > y + h) return;
-      const textW = clamp(city.name.length * fontSize * .57 / 72, .38, 2.5);
-      const textH = Math.max(.16, fontSize * 1.35 / 72);
-      const baselineX = markerX + city.label.dx * unit;
-      const baselineY = markerY + city.label.dy * unit;
-      const anchor = city.label.anchor;
-      let textX = anchor === "end" ? baselineX - textW : anchor === "middle" ? baselineX - textW / 2 : baselineX;
+    const glow = state.labelHalo
+      ? { size: Math.round(clamp(state.labelHaloWidth * unit * 72 * 2, .5, 12) * 10) / 10, opacity: 1, color: haloColor().slice(1).toUpperCase() }
+      : null;
+    const place = (text, px, py, anchor, fontPx, color) => {
+      const baseX = x + (px - bounds.x) * unit;
+      const baseY = y + (py - bounds.y) * unit;
+      if (baseX < x - .3 || baseX > x + w + .3 || baseY < y - .3 || baseY > y + h + .3) return;
+      const fontSize = clamp(fontPx * unit * 72, 5, 48);
+      const textW = textWidth(text, fontPx) * unit + fontSize / 72 * .3;
+      const textH = Math.max(.14, fontSize * 1.3 / 72);
+      let textX = anchor === "end" ? baseX - textW : anchor === "middle" ? baseX - textW / 2 : baseX;
       textX = clamp(textX, 0, Math.max(0, slideW - textW));
-      const textY = clamp(baselineY - fontSize * .35 / 72 - textH / 2, 0, Math.max(0, slideH - textH));
-      slide.addText(city.name, {
+      const textY = clamp(baseY - fontSize * .35 / 72 - textH / 2, 0, Math.max(0, slideH - textH));
+      const options = {
         x: textX, y: textY, w: textW, h: textH,
-        margin: 0, fontFace: "Arial", fontSize, bold: true,
-        color: state.markerColor.slice(1).toUpperCase(),
+        margin: 0, fontFace: "Arial", fontSize: Math.round(fontSize * 10) / 10, bold: true,
+        color: color.slice(1).toUpperCase(),
         align: anchor === "end" ? "right" : anchor === "middle" ? "center" : "left",
         valign: "mid", breakLine: false, isTextBox: true
+      };
+      if (glow) options.glow = glow;
+      slide.addText(text, options);
+    };
+    if (state.regionLabels) {
+      const color = darken(state.fillStart, .7);
+      features.forEach(d => {
+        if (!shownRegionLabels.has(d.properties.id)) return;
+        place(shortRegionName(d.properties.name), d.centroid[0], d.centroid[1], "middle", state.regionFontSize, color);
       });
-    });
+    }
+    if (state.cityLabels) {
+      cities.forEach(city => {
+        if (!state.selectedCities.has(city.id) || !city.point || !city.label) return;
+        place(city.name, city.point[0] + city.label.dx, city.point[1] + city.label.dy, city.label.anchor, state.cityFontSize, state.markerColor);
+      });
+    }
   }
 
   async function replaceSvgFallbacks(pptxBlob, pngBlob) {
@@ -1529,7 +1714,7 @@
   function darken(hex, amount) {
     const value = hex.replace("#", "");
     const rgb = [0, 2, 4].map(i => parseInt(value.slice(i, i + 2), 16));
-    return `rgb(${rgb.map(channel => Math.round(channel * (1 - amount))).join(",")})`;
+    return `#${rgb.map(channel => Math.round(channel * (1 - amount)).toString(16).padStart(2, "0")).join("")}`;
   }
   function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char])); }
 })();
