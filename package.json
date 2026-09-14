@@ -1,0 +1,13 @@
+{
+  "name": "russia-map-editor",
+  "private": true,
+  "scripts": {
+    "build:regions": "node scripts/build-regions.mjs",
+    "check:regions": "node scripts/check-regions.mjs"
+  },
+  "devDependencies": {
+    "topojson-client": "3.1.0",
+    "topojson-server": "3.0.1",
+    "topojson-simplify": "3.0.3"
+  }
+}
