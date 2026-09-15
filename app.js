@@ -1508,27 +1508,44 @@
     const label = format === "copy" ? "копию" : format.toUpperCase();
     try {
       showToast(`Готовим ${label}…`, true);
-      if (format === "svg") {
-        const data = getExportSvg();
-        downloadBlob(new Blob([data.xml], { type: "image/svg+xml;charset=utf-8" }), exportFilename("svg"));
-      } else if (format === "png") {
-        const png = await renderPng(2);
-        downloadBlob(png.blob, exportFilename("png"));
-      } else if (format === "copy") {
+      if (format === "copy") {
         await copyPngToClipboard();
         showToast("PNG скопирован — вставьте в презентацию");
         return;
-      } else if (format === "pptx") {
-        await exportPptx();
       }
+      const stem = exportStem();
+      let blob;
+      if (format === "svg") blob = new Blob([getExportSvg().xml], { type: "image/svg+xml;charset=utf-8" });
+      else if (format === "png") blob = (await renderPng(2)).blob;
+      else if (format === "pptx") blob = await exportPptx();
+      else return;
       if (state.projectCompanion) {
-        setTimeout(() => downloadProject(exportFilename("project.json"), false), 180);
+        await downloadWithProject(blob, `${stem}.${format}`, stem);
+        showToast(`${label} и JSON-проект сохранены одним ZIP`);
+      } else {
+        downloadBlob(blob, `${stem}.${format}`);
+        showToast(`${label} готов`);
       }
-      showToast(`${format.toUpperCase()} готов`);
     } catch (error) {
       console.error(error);
       showToast(`Ошибка экспорта: ${error.message || "попробуйте ещё раз"}`);
     }
+  }
+
+  // The export and its project go out as one ZIP: browsers block or question a second download that follows the first.
+  async function downloadWithProject(blob, filename, stem) {
+    const projectName = `${stem}.project.json`;
+    const json = JSON.stringify(createProjectDocument(), null, 2);
+    if (!window.JSZip) {
+      downloadBlob(blob, filename);
+      setTimeout(() => downloadBlob(new Blob([json], { type: "application/json;charset=utf-8" }), projectName), 180);
+      return;
+    }
+    const zip = new window.JSZip();
+    // PNG and PPTX are already compressed; deflating them again only costs time.
+    zip.file(filename, blob, { compression: /\.(svg|json)$/i.test(filename) ? "DEFLATE" : "STORE" });
+    zip.file(projectName, json, { compression: "DEFLATE" });
+    downloadBlob(await zip.generateAsync({ type: "blob", mimeType: "application/zip" }), `${stem}.zip`);
   }
 
   async function copyPngToClipboard() {
@@ -1591,8 +1608,7 @@
       pptx.write({ outputType: "blob", compression: true }),
       renderPng(1, vector)
     ]);
-    const compatiblePptx = await replaceSvgFallbacks(pptxBlob, pngFallback.blob);
-    downloadBlob(compatiblePptx, exportFilename("pptx"));
+    return replaceSvgFallbacks(pptxBlob, pngFallback.blob);
   }
 
   // Every label becomes a native PowerPoint text box: font, size, colour, alignment and the halo (as a text glow) are
@@ -1687,11 +1703,12 @@
     document.getElementById("export-popover").hidden = true;
     document.getElementById("export-main").setAttribute("aria-expanded", "false");
   }
-  function exportFilename(extension) {
+  function exportStem() {
     const now = new Date();
     const pad = n => String(n).padStart(2, "0");
-    return `karta-rossii-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}.${extension}`;
+    return `karta-rossii-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
   }
+  function exportFilename(extension) { return `${exportStem()}.${extension}`; }
   function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob); const a = document.createElement("a");
     a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
