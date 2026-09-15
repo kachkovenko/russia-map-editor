@@ -129,6 +129,7 @@
                 <g id="region-labels"></g>
                 <g id="cities-layer"></g>
               </g>
+              <g id="active-outline" class="active-outline"></g>
             </svg>
             <div class="frame-label" id="frame-label">16:9 · PNG 3200 × 1800</div>
           </div>
@@ -139,6 +140,12 @@
           <output id="zoom-level" aria-label="Текущий масштаб">100%</output>
           <button id="zoom-in" aria-label="Увеличить">+</button>
           <button id="fit-map">Вписать</button>
+        </div>
+        <div class="selection-bar" id="selection-bar" hidden>
+          <span class="selection-bar__count" id="selection-bar-count">1 регион</span>
+          <label class="mini-color" title="Заливка выбранных регионов"><input id="active-color" type="color" value="#ff5f46"><input class="hex-input" data-color-text-for="active-color" value="#FF5F46" maxlength="7" aria-label="HEX-код заливки выбранных регионов" spellcheck="false"></label>
+          <button type="button" id="active-unmark">Снять отметку</button>
+          <button type="button" id="active-clear" aria-label="Снять выделение" title="Снять выделение (Esc)">✕</button>
         </div>
 
         <div class="tooltip" id="tooltip" hidden></div>

@@ -56,7 +56,12 @@
     projection: ["conic", "mercator", "globe"], ratio: ["16:9", "4:3"], tab: ["regions", "cities", "selected"], regionLabelsMode: ["all", "selected"],
     markerShape: ["circle", "square", "diamond", "pin"]
   });
-  const state = { ...defaults, query: "", selectedRegions: new Set(), selectedCities: new Set(), cityLabelOffsets: {} };
+  // `selectedRegions` are the marked (highlighted, listed) regions; `activeRegions` is the transient pick on the map
+  // whose fill is being edited; `regionColors` holds per-region fills that override the shared highlight colour.
+  const state = {
+    ...defaults, query: "", selectedRegions: new Set(), selectedCities: new Set(), cityLabelOffsets: {},
+    regionColors: {}, activeRegions: new Set()
+  };
 
   const svg = d3.select("#map");
   const regionsLayer = d3.select("#regions-layer");
@@ -133,8 +138,11 @@
       .attr("aria-label", d => d.properties.name)
       .on("mousemove", regionHover)
       .on("mouseleave", hideTooltip)
-      .on("click", (event, d) => { event.stopPropagation(); if (Date.now() >= suppressSelectionUntil) toggleRegion(d.properties.id, true); })
-      .on("keydown", (event, d) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggleRegion(d.properties.id, true); } });
+      .on("click", (event, d) => {
+        event.stopPropagation();
+        if (Date.now() >= suppressSelectionUntil) pickRegion(d.properties.id, event.shiftKey || event.metaKey || event.ctrlKey);
+      })
+      .on("keydown", (event, d) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); pickRegion(d.properties.id, event.shiftKey); } });
 
     labelGroups = labelsLayer.selectAll("text").data(features, d => d.properties.id).join("text")
       .attr("class", "region-label")
@@ -308,11 +316,19 @@
 
     const landFill = state.gradient ? "url(#land-gradient)" : state.fillStart;
     regionPaths
-      .attr("fill", d => state.selectedRegions.has(d.properties.id) ? state.selectedColor : landFill)
+      .attr("fill", d => regionFill(d.properties.id, landFill))
       .attr("fill-opacity", state.opacity)
       .attr("stroke", state.borders ? state.borderColor : "none")
       .attr("stroke-width", state.borders ? state.borderWidth : 0)
       .classed("is-selected", d => state.selectedRegions.has(d.properties.id));
+
+    const activeFeatures = features.filter(f => state.activeRegions.has(f.properties.id));
+    d3.select("#active-outline").selectAll("g").data(activeFeatures, d => d.properties.id).join(enter => {
+      const g = enter.append("g");
+      g.append("path").attr("class", "active-outline__halo");
+      g.append("path").attr("class", "active-outline__line");
+      return g;
+    }).each(function (d) { d3.select(this).selectAll("path").attr("d", path(d)); });
 
     d3.select("#country-outline")
       .attr("stroke", darken(state.fillStart, .45))
@@ -620,8 +636,8 @@
       ? "Экспортируется весь слайд выбранного формата."
       : "Экспорт автоматически кадрируется по карте и меткам.";
     document.getElementById("stage-hint").textContent = state.frame
-      ? "Колесо — масштаб карты · перетаскивание — положение на слайде · подписи городов можно двигать"
-      : "Колесо — масштаб · перетаскивание — перемещение · подписи городов можно двигать";
+      ? "Колесо — масштаб карты · перетаскивание — положение на слайде · Shift+клик — несколько регионов · подписи можно двигать"
+      : "Колесо — масштаб · перетаскивание — перемещение · Shift+клик — несколько регионов · подписи можно двигать";
   }
 
   function regionMatches(feature, query) {
@@ -720,7 +736,7 @@
   function toggleDistrict(fd) {
     const ids = features.filter(f => f.properties.fd === fd).map(f => f.properties.id);
     const allSelected = ids.every(id => state.selectedRegions.has(id));
-    ids.forEach(id => allSelected ? state.selectedRegions.delete(id) : state.selectedRegions.add(id));
+    ids.forEach(id => setRegionMarked(id, !allSelected));
     afterSelectionChange();
   }
 
@@ -740,16 +756,76 @@
     const set = isRegion ? state.selectedRegions : state.selectedCities;
     const allSelected = foundForSelect.ids.every(id => set.has(id));
     foundForSelect.ids.forEach(id => {
-      if (allSelected) { set.delete(id); if (!isRegion) delete state.cityLabelOffsets[id]; }
+      if (isRegion) setRegionMarked(id, !allSelected);
+      else if (allSelected) { set.delete(id); delete state.cityLabelOffsets[id]; }
       else set.add(id);
     });
     if (!isRegion && !allSelected) state.cityLabels = true;
     afterSelectionChange();
   }
 
-  function toggleRegion(id, fromMap) {
-    state.selectedRegions.has(id) ? state.selectedRegions.delete(id) : state.selectedRegions.add(id);
-    afterSelectionChange(fromMap ? id : null);
+  function regionFill(id, landFill) {
+    return state.regionColors[id] || (state.selectedRegions.has(id) ? state.selectedColor : landFill);
+  }
+
+  function setRegionMarked(id, marked) {
+    if (marked) { state.selectedRegions.add(id); return; }
+    state.selectedRegions.delete(id);
+    delete state.regionColors[id];
+    state.activeRegions.delete(id);
+  }
+
+  // List checkbox: mark or unmark.
+  function toggleRegion(id) {
+    setRegionMarked(id, !state.selectedRegions.has(id));
+    afterSelectionChange();
+  }
+
+  // Map click: pick the region (marking it if needed) so its fill can be edited; a second plain click on the only
+  // picked region unmarks it. Shift/⌘ adds to or removes from the pick.
+  function pickRegion(id, additive) {
+    const active = state.activeRegions;
+    if (additive) {
+      if (active.has(id)) setRegionMarked(id, false);
+      else { active.add(id); setRegionMarked(id, true); }
+    } else if (active.size === 1 && active.has(id)) {
+      setRegionMarked(id, false);
+    } else {
+      active.clear(); active.add(id); setRegionMarked(id, true);
+    }
+    afterSelectionChange(id);
+  }
+
+  function clearActiveRegions() {
+    if (!state.activeRegions.size) return;
+    state.activeRegions.clear();
+    updateSelectionBar(); restyle();
+  }
+
+  function activeColor() {
+    const first = state.activeRegions.values().next().value;
+    return (first && state.regionColors[first]) || state.selectedColor;
+  }
+
+  function updateSelectionBar() {
+    const bar = document.getElementById("selection-bar");
+    const count = state.activeRegions.size;
+    bar.hidden = !count;
+    if (!count) return;
+    document.getElementById("selection-bar-count").textContent = `${count} ${plural(count, "регион", "региона", "регионов")}`;
+    const color = activeColor();
+    document.getElementById("active-color").value = color;
+    const text = document.querySelector('[data-color-text-for="active-color"]');
+    text.value = color.toUpperCase();
+    text.classList.remove("is-invalid");
+    text.setAttribute("aria-invalid", "false");
+  }
+
+  function plural(n, one, few, many) {
+    const mod10 = n % 10, mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return one;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+    return many;
   }
 
   function toggleCity(id, fromMap) {
@@ -768,6 +844,7 @@
     document.getElementById("selected-total").textContent = state.selectedRegions.size + state.selectedCities.size;
     updateList();
     if (revealId) revealListItem(revealId);
+    updateSelectionBar();
     restyle();
     saveState();
   }
@@ -810,6 +887,7 @@
       if (meta && !editingText && event.code === "KeyY") { event.preventDefault(); redo(); return; }
       if (event.key === "Escape") {
         if (document.activeElement === search && search.value) { search.value = ""; state.query = ""; updateList(); return; }
+        if (state.activeRegions.size && !editingText) { clearActiveRegions(); return; }
         search.blur(); closePanels(); closeExportMenu();
       }
     });
@@ -831,9 +909,24 @@
     document.getElementById("clear-selection").addEventListener("click", () => {
       if (!state.selectedRegions.size && !state.selectedCities.size) return;
       state.selectedRegions.clear(); state.selectedCities.clear(); state.cityLabelOffsets = {};
+      state.regionColors = {}; state.activeRegions.clear();
       afterSelectionChange();
       showToast("Выбор очищен · ⌘Z вернёт обратно");
     });
+
+    // Floating bar for regions picked on the map: recolour them independently, unmark them, or drop the pick.
+    bindColorInput("active-color", activeColor, value => {
+      state.activeRegions.forEach(id => { state.regionColors[id] = value; });
+      restyle(); saveState(true);
+    });
+    document.getElementById("active-unmark").addEventListener("click", () => {
+      [...state.activeRegions].forEach(id => setRegionMarked(id, false));
+      afterSelectionChange();
+      showToast("Отметка снята · ⌘Z вернёт обратно");
+    });
+    document.getElementById("active-clear").addEventListener("click", clearActiveRegions);
+    // A click on empty canvas (not the end of a drag) drops the pick; region and city clicks stop propagation.
+    canvasViewport.addEventListener("click", () => { if (Date.now() >= suppressSelectionUntil) clearActiveRegions(); });
 
     bindCheck("gradient-enabled", "gradient", updateGradientControls);
     bindColor("fill-start", "fillStart");
@@ -1169,19 +1262,26 @@
   }
 
   function bindColor(id, key) {
+    bindColorInput(id, () => state[key], value => {
+      state[key] = value;
+      updateGradientControls();
+      restyle(); saveState(true);
+    });
+  }
+
+  // Colour swatch plus its HEX field: `current` supplies the value to fall back to, `apply` receives a valid lowercase hex.
+  function bindColorInput(id, current, apply) {
     const input = document.getElementById(id);
     const textInput = document.querySelector(`[data-color-text-for="${id}"]`);
     const applyColor = value => {
       const normalized = value.toLowerCase();
-      state[key] = normalized;
       input.value = normalized;
       if (textInput) {
         textInput.value = normalized.toUpperCase();
         textInput.classList.remove("is-invalid");
         textInput.setAttribute("aria-invalid", "false");
       }
-      updateGradientControls();
-      restyle(); saveState(true);
+      apply(normalized);
     };
     input.addEventListener("input", event => {
       applyColor(event.target.value);
@@ -1198,7 +1298,7 @@
       const normalized = normalizeHex(textInput.value, true);
       if (normalized) applyColor(normalized);
       else {
-        textInput.value = state[key].toUpperCase();
+        textInput.value = current().toUpperCase();
         textInput.classList.remove("is-invalid");
         textInput.setAttribute("aria-invalid", "false");
       }
@@ -1314,7 +1414,8 @@
     Object.keys(defaults).forEach(key => state[key] = defaults[key]);
     state.query = "";
     state.selectedRegions.clear(); state.selectedCities.clear(); state.cityLabelOffsets = {};
-    syncControls(); updateCanvasSize(); updateList(); render(); saveState();
+    state.regionColors = {}; state.activeRegions.clear();
+    syncControls(); updateCanvasSize(); updateList(); updateSelectionBar(); render(); saveState();
     showToast("Настройки сброшены · ⌘Z вернёт всё обратно");
   }
 
@@ -1325,6 +1426,7 @@
   function persist() {
     const serializable = { ...state, selectedRegions: [...state.selectedRegions], selectedCities: [...state.selectedCities] };
     delete serializable.query;
+    delete serializable.activeRegions;
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(serializable)); } catch (_) {}
   }
 
@@ -1337,6 +1439,7 @@
       state.selectedRegions = new Set(sanitizeIds(saved.selectedRegions, regionIds, features.length));
       state.selectedCities = new Set(sanitizeIds(saved.selectedCities, cityIds, cities.length));
       state.cityLabelOffsets = sanitizeOffsets(saved.cityLabelOffsets, cityIds);
+      state.regionColors = sanitizeColors(saved.regionColors, regionIds);
     } catch (_) {
       try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
     }
@@ -1387,7 +1490,8 @@
       settings: sanitizeSettings(raw.settings),
       regions: sanitizeIds(raw.selection?.regions, regionIds, features.length),
       cities: sanitizeIds(raw.selection?.cities, cityIds, cities.length),
-      labelOffsets: sanitizeOffsets(raw.labelOffsets, cityIds)
+      labelOffsets: sanitizeOffsets(raw.labelOffsets, cityIds),
+      regionColors: sanitizeColors(raw.regionColors, regionIds)
     }, { keepView: true });
     persist();
     updateHistoryButtons();
@@ -1403,6 +1507,8 @@
     PROJECT_SETTING_KEYS.forEach(key => { settings[key] = state[key]; });
     const labelOffsets = Object.create(null);
     Object.keys(state.cityLabelOffsets).sort().forEach(id => { labelOffsets[id] = state.cityLabelOffsets[id]; });
+    const regionColors = Object.create(null);
+    Object.keys(state.regionColors).filter(id => state.selectedRegions.has(id)).sort().forEach(id => { regionColors[id] = state.regionColors[id]; });
     return {
       format: PROJECT_FORMAT,
       version: PROJECT_VERSION,
@@ -1413,6 +1519,7 @@
         regions: [...state.selectedRegions].sort(),
         cities: [...state.selectedCities].sort()
       },
+      regionColors,
       labelOffsets
     };
   }
@@ -1456,7 +1563,8 @@
       settings: sanitizeSettings(raw.settings, true),
       regions: sanitizeIds(raw.selection.regions, regionIds, features.length, true),
       cities: sanitizeIds(raw.selection.cities, cityIds, cities.length, true),
-      labelOffsets: sanitizeOffsets(raw.labelOffsets, cityIds, true)
+      labelOffsets: sanitizeOffsets(raw.labelOffsets, cityIds, true),
+      regionColors: sanitizeColors(raw.regionColors, regionIds, true)
     };
   }
 
@@ -1509,6 +1617,24 @@
     return clean;
   }
 
+  function sanitizeColors(value, allowlist, strict = false) {
+    const clean = {};
+    if (value === undefined || value === null) return clean;
+    if (!isPlainRecord(value) || hasBlockedKeys(value) || Object.keys(value).length > allowlist.size) {
+      if (strict) throw new Error("неверный список цветов регионов");
+      return clean;
+    }
+    for (const [id, color] of Object.entries(value)) {
+      const ok = allowlist.has(id) && typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color);
+      if (!ok) {
+        if (strict) throw new Error("неверный цвет региона");
+        continue;
+      }
+      clean[id] = color.toLowerCase();
+    }
+    return clean;
+  }
+
   function sanitizeOffsets(value, allowlist, strict = false) {
     const clean = {};
     if (value === undefined || value === null) return clean;
@@ -1535,7 +1661,9 @@
     state.selectedRegions = new Set(project.regions);
     state.selectedCities = new Set(project.cities);
     state.cityLabelOffsets = project.labelOffsets || {};
-    syncControls(); updateCanvasSize(); updateList(); render();
+    state.regionColors = project.regionColors || {};
+    state.activeRegions.forEach(id => { if (!state.selectedRegions.has(id)) state.activeRegions.delete(id); });
+    syncControls(); updateCanvasSize(); updateList(); updateSelectionBar(); render();
   }
 
   function isPlainRecord(value) {
@@ -1558,6 +1686,7 @@
     clone.setAttribute("height", bounds.height);
     clone.querySelector("#export-content").removeAttribute("mask");
     clone.querySelector("#frame-fade").remove();
+    clone.querySelector("#active-outline").remove();
     const bg = clone.querySelector("#export-background");
     bg.removeAttribute("display");
     bg.setAttribute("x", bounds.x); bg.setAttribute("y", bounds.y); bg.setAttribute("width", bounds.width); bg.setAttribute("height", bounds.height);
