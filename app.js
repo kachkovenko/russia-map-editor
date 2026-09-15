@@ -60,7 +60,7 @@
   // whose fill is being edited; `regionColors` holds per-region fills that override the shared highlight colour.
   const state = {
     ...defaults, query: "", selectedRegions: new Set(), selectedCities: new Set(), cityLabelOffsets: {},
-    regionColors: {}, activeRegions: new Set()
+    regionColors: {}, activeRegions: new Set(), mapSelected: false
   };
 
   const svg = d3.select("#map");
@@ -97,6 +97,8 @@
   let labelGeometryFresh = false;
   let fitTranslate = [BASE_WIDTH / 2, RATIO_HEIGHTS["16:9"] / 2];
   let renderQueued = false;
+  let mapHover = false;
+  let handleDrag = null;
   const activePointers = new Map();
   const history = { past: [], future: [], current: null, burst: null };
   const MAP_FONT = "Inter, Arial, sans-serif";
@@ -228,17 +230,23 @@
   }
 
   function makeProjection() {
-    const centerLon = 105 + state.rotation;
-    const baseProjection = state.projection === "mercator"
+    const projectionFor = centerLon => state.projection === "mercator"
       ? d3.geoMercator().rotate([-centerLon, 0])
       : d3.geoConicEqualArea().parallels([50, 70]).rotate([-centerLon, 0]);
-
     const collection = { type: "FeatureCollection", features };
-    baseProjection.fitExtent([[width * .075, height * .12], [width * .925, height * .88]], collection);
-    fitTranslate = baseProjection.translate();
+    // The unrotated map is fitted into the slide once; rotation keeps that scale and the map's centre in place, so
+    // turning the map behaves like turning an object rather than re-fitting a differently shaped outline.
+    const unrotated = projectionFor(105).fitExtent([[width * .075, height * .12], [width * .925, height * .88]], collection);
+    const fitScale = unrotated.scale();
+    fitTranslate = unrotated.translate();
+    const baseProjection = projectionFor(105 + state.rotation).scale(fitScale).translate(fitTranslate);
+    if (state.rotation) {
+      const b = d3.geoPath(baseProjection).bounds(collection);
+      fitTranslate = [fitTranslate[0] + width / 2 - (b[0][0] + b[1][0]) / 2, fitTranslate[1] + height / 2 - (b[0][1] + b[1][1]) / 2];
+    }
     // The map's scale and offset on the slide; without a frame the map is just fitted, the export crops to it anyway.
     const placement = mapPlacement();
-    baseProjection.scale(baseProjection.scale() * placement.zoom)
+    baseProjection.scale(fitScale * placement.zoom)
       .translate([fitTranslate[0] + placement.x, fitTranslate[1] + placement.y]);
     projection = state.projection === "globe"
       ? createLensProjection(baseProjection, collection, state.lensStrength)
@@ -380,6 +388,7 @@
     d3.select("#frame-fade-window").attr("width", width).attr("height", height);
     d3.select("#export-content").attr("mask", state.frame ? "url(#frame-fade)" : null);
     applyCanvasTransform();
+    updateMapSelection();
     document.querySelectorAll("[data-projection]").forEach(el => el.classList.toggle("is-active", el.dataset.projection === state.projection));
     document.querySelectorAll("[data-quick-projection]").forEach(el => el.classList.toggle("is-active", (state.projection === "globe" ? "globe" : "conic") === el.dataset.quickProjection));
     document.querySelectorAll(".globe-only").forEach(el => el.hidden = state.projection !== "globe");
@@ -636,8 +645,8 @@
       ? "Экспортируется весь слайд выбранного формата."
       : "Экспорт автоматически кадрируется по карте и меткам.";
     document.getElementById("stage-hint").textContent = state.frame
-      ? "Колесо — масштаб карты · перетаскивание — положение на слайде · Shift+клик — несколько регионов · подписи можно двигать"
-      : "Колесо — масштаб · перетаскивание — перемещение · Shift+клик — несколько регионов · подписи можно двигать";
+      ? "Клик — регион, Shift — несколько · клик рядом с картой — вся карта: углы меняют размер, ручка сверху поворачивает · колесо — масштаб"
+      : "Клик — регион, Shift — несколько · клик рядом с картой — вся карта, ручка сверху поворачивает · колесо — масштаб доски";
   }
 
   function regionMatches(feature, query) {
@@ -784,6 +793,7 @@
   // Map click: pick the region (marking it if needed) so its fill can be edited; a second plain click on the only
   // picked region unmarks it. Shift/⌘ adds to or removes from the pick.
   function pickRegion(id, additive) {
+    state.mapSelected = false;
     const active = state.activeRegions;
     if (additive) {
       if (active.has(id)) setRegionMarked(id, false);
@@ -800,6 +810,115 @@
     if (!state.activeRegions.size) return;
     state.activeRegions.clear();
     updateSelectionBar(); restyle();
+  }
+
+  // The whole map as one object (like a picture on a slide): a click next to the map, inside its bounding box, selects
+  // it; the corners resize it on the slide and the handle above rotates it (the projection's rotation).
+  function selectMap() {
+    if (state.mapSelected) return;
+    state.activeRegions.clear();
+    state.mapSelected = true;
+    updateSelectionBar(); restyle();
+  }
+
+  function deselectMap() {
+    if (!state.mapSelected) return;
+    state.mapSelected = false;
+    updateMapSelection();
+  }
+
+  function mapBounds() {
+    const b = regionsLayer.node().getBBox();
+    return { x: b.x, y: b.y, width: b.width, height: b.height };
+  }
+
+  // Slide units per screen pixel, including the board zoom.
+  function screenScale() {
+    return Math.max(artboard.getBoundingClientRect().width, 1) / width;
+  }
+
+  function slidePoint(clientX, clientY) {
+    const rect = artboard.getBoundingClientRect();
+    const k = width / Math.max(rect.width, 1);
+    return [(clientX - rect.left) * k, (clientY - rect.top) * k];
+  }
+
+  function pointInMapBounds(clientX, clientY) {
+    const [x, y] = slidePoint(clientX, clientY);
+    const b = mapBounds();
+    return x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height;
+  }
+
+  function updateMapSelection() {
+    const overlay = d3.select("#map-selection");
+    const shown = state.mapSelected || mapHover;
+    overlay.attr("display", shown ? null : "none").classed("is-hover", !state.mapSelected);
+    if (!shown) return;
+    const b = mapBounds();
+    const k = 1 / screenScale();
+    overlay.select(".map-selection__box").attr("x", b.x).attr("y", b.y).attr("width", b.width).attr("height", b.height);
+    const corners = { nw: [b.x, b.y], ne: [b.x + b.width, b.y], se: [b.x + b.width, b.y + b.height], sw: [b.x, b.y + b.height] };
+    overlay.selectAll(".map-selection__corner").attr("display", state.frame ? null : "none")
+      .attr("transform", function () { const c = corners[this.dataset.handle]; return `translate(${c[0]},${c[1]}) scale(${k})`; });
+    const topX = b.x + b.width / 2, topY = b.y;
+    overlay.select(".map-selection__stem").attr("x1", topX).attr("y1", topY).attr("x2", topX).attr("y2", topY - 22 * k);
+    overlay.select(".map-selection__rotate").attr("transform", `translate(${topX},${topY - 30 * k}) scale(${k})`);
+  }
+
+  function bindMapHandles() {
+    const handles = d3.select("#map-selection").selectAll("[data-handle]");
+    handles.on("pointerdown", function (event) {
+      if (event.button !== 0 && event.pointerType === "mouse") return;
+      event.stopPropagation(); event.preventDefault();
+      const kind = this.dataset.handle;
+      const b = mapBounds();
+      const center = [b.x + b.width / 2, b.y + b.height / 2];
+      const corners = { nw: [b.x, b.y], ne: [b.x + b.width, b.y], se: [b.x + b.width, b.y + b.height], sw: [b.x, b.y + b.height] };
+      const opposite = { nw: "se", ne: "sw", se: "nw", sw: "ne" };
+      const p = slidePoint(event.clientX, event.clientY);
+      handleDrag = {
+        kind, element: this, pointerId: event.pointerId, zoom0: state.zoom, mapX0: state.mapX, mapY0: state.mapY,
+        rotation0: state.rotation, center, corner: corners[kind], anchor: corners[opposite[kind]],
+        angle0: Math.atan2(p[1] - center[1], p[0] - center[0])
+      };
+      this.setPointerCapture(event.pointerId);
+      this.classList.add("is-dragging");
+    });
+    handles.on("pointermove", event => {
+      if (!handleDrag || handleDrag.pointerId !== event.pointerId) return;
+      event.stopPropagation();
+      const p = slidePoint(event.clientX, event.clientY);
+      if (handleDrag.kind === "rotate") {
+        const angle = Math.atan2(p[1] - handleDrag.center[1], p[0] - handleDrag.center[0]);
+        const delta = (angle - handleDrag.angle0) * 180 / Math.PI;
+        state.rotation = clamp(Math.round(handleDrag.rotation0 + delta), NUMBER_RANGES.rotation[0], NUMBER_RANGES.rotation[1]);
+        document.getElementById("rotation").value = state.rotation;
+        document.getElementById("rotation-value").textContent = `${state.rotation}°`;
+      } else {
+        // Uniform resize about the opposite corner: project the pointer onto the diagonal to get the scale factor.
+        const o = handleDrag.anchor, c = handleDrag.corner;
+        const vx = c[0] - o[0], vy = c[1] - o[1];
+        const f = ((p[0] - o[0]) * vx + (p[1] - o[1]) * vy) / Math.max(vx * vx + vy * vy, 1);
+        const zoom = clamp(handleDrag.zoom0 * f, NUMBER_RANGES.zoom[0], NUMBER_RANGES.zoom[1]);
+        const applied = zoom / handleDrag.zoom0;
+        const tx = fitTranslate[0] + handleDrag.mapX0, ty = fitTranslate[1] + handleDrag.mapY0;
+        state.mapX = clamp(o[0] - (o[0] - tx) * applied - fitTranslate[0], NUMBER_RANGES.mapX[0], NUMBER_RANGES.mapX[1]);
+        state.mapY = clamp(o[1] - (o[1] - ty) * applied - fitTranslate[1], NUMBER_RANGES.mapY[0], NUMBER_RANGES.mapY[1]);
+        state.zoom = zoom;
+      }
+      scheduleRender();
+      saveState(true);
+    });
+    const end = event => {
+      if (!handleDrag || handleDrag.pointerId !== event.pointerId) return;
+      event.stopPropagation();
+      handleDrag.element.classList.remove("is-dragging");
+      handleDrag = null;
+      suppressSelectionUntil = Date.now() + 160;
+      saveState();
+    };
+    handles.on("pointerup", end);
+    handles.on("pointercancel", end);
   }
 
   function activeColor() {
@@ -887,8 +1006,16 @@
       if (meta && !editingText && event.code === "KeyY") { event.preventDefault(); redo(); return; }
       if (event.key === "Escape") {
         if (document.activeElement === search && search.value) { search.value = ""; state.query = ""; updateList(); return; }
-        if (state.activeRegions.size && !editingText) { clearActiveRegions(); return; }
+        if ((state.activeRegions.size || state.mapSelected) && !editingText) { deselectMap(); clearActiveRegions(); return; }
         search.blur(); closePanels(); closeExportMenu();
+      }
+      const nudge = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+      if (nudge && state.mapSelected && state.frame && !editingText) {
+        event.preventDefault();
+        const step = event.shiftKey ? 10 : 1;
+        state.mapX = clamp(state.mapX + nudge[0] * step, NUMBER_RANGES.mapX[0], NUMBER_RANGES.mapX[1]);
+        state.mapY = clamp(state.mapY + nudge[1] * step, NUMBER_RANGES.mapY[0], NUMBER_RANGES.mapY[1]);
+        scheduleRender(); saveState(true);
       }
     });
     document.getElementById("undo").addEventListener("click", undo);
@@ -926,7 +1053,13 @@
     });
     document.getElementById("active-clear").addEventListener("click", clearActiveRegions);
     // A click on empty canvas (not the end of a drag) drops the pick; region and city clicks stop propagation.
-    canvasViewport.addEventListener("click", () => { if (Date.now() >= suppressSelectionUntil) clearActiveRegions(); });
+    canvasViewport.addEventListener("click", event => {
+      if (Date.now() < suppressSelectionUntil) return;
+      if (pointInMapBounds(event.clientX, event.clientY)) selectMap();
+      else { deselectMap(); clearActiveRegions(); }
+    });
+    canvasViewport.addEventListener("pointerleave", () => { if (mapHover) { mapHover = false; updateMapSelection(); } });
+    bindMapHandles();
 
     bindCheck("gradient-enabled", "gradient", updateGradientControls);
     bindColor("fill-start", "fillStart");
@@ -1115,6 +1248,11 @@
     });
     canvasViewport.addEventListener("pointermove", event => {
       if (labelDrag) { moveLabelDrag(event); return; }
+      if (!panGesture && !pinchGesture && !handleDrag) {
+        // Hovering the empty space inside the map's box hints that the whole map can be selected there.
+        const hover = !event.target.closest(".region, .city, .map-selection") && pointInMapBounds(event.clientX, event.clientY);
+        if (hover !== mapHover) { mapHover = hover; updateMapSelection(); }
+      }
       if (activePointers.has(event.pointerId)) activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
       if (pinchGesture && activePointers.size >= 2) {
         const [a, b] = [...activePointers.values()];
@@ -1257,6 +1395,7 @@
     stage.style.setProperty("--grid-size", `${spacing}px`);
     stage.style.setProperty("--grid-x", `calc(50% + ${view.x}px)`);
     stage.style.setProperty("--grid-y", `calc(50% + ${view.y}px)`);
+    if (state.mapSelected || mapHover) updateMapSelection();
   }
 
   function bindCheck(id, key, callback) {
@@ -1420,7 +1559,7 @@
     Object.keys(defaults).forEach(key => state[key] = defaults[key]);
     state.query = "";
     state.selectedRegions.clear(); state.selectedCities.clear(); state.cityLabelOffsets = {};
-    state.regionColors = {}; state.activeRegions.clear();
+    state.regionColors = {}; state.activeRegions.clear(); state.mapSelected = false;
     syncControls(); updateCanvasSize(); updateList(); updateSelectionBar(); render(); saveState();
     showToast("Настройки сброшены · ⌘Z вернёт всё обратно");
   }
@@ -1433,6 +1572,7 @@
     const serializable = { ...state, selectedRegions: [...state.selectedRegions], selectedCities: [...state.selectedCities] };
     delete serializable.query;
     delete serializable.activeRegions;
+    delete serializable.mapSelected;
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(serializable)); } catch (_) {}
   }
 
@@ -1693,6 +1833,7 @@
     clone.querySelector("#export-content").removeAttribute("mask");
     clone.querySelector("#frame-fade").remove();
     clone.querySelector("#active-outline").remove();
+    clone.querySelector("#map-selection").remove();
     const bg = clone.querySelector("#export-background");
     bg.removeAttribute("display");
     bg.setAttribute("x", bounds.x); bg.setAttribute("y", bounds.y); bg.setAttribute("width", bounds.width); bg.setAttribute("height", bounds.height);
