@@ -23,7 +23,7 @@
   const PROJECTION_HELP = Object.freeze({
     conic: "Равновеликая проекция: площади регионов сравниваются корректнее.",
     mercator: "Привычный вид веб-карт. Северные территории визуально увеличены.",
-    globe: "Эффект широкоугольной линзы: центр крупнее, удалённые края компактнее."
+    globe: "Эффект широкоугольной линзы: точка обзора крупнее, удалённые края компактнее. Крестик на карте — точка обзора: перетащите его туда, куда «смотрим»; двойной клик возвращает в центр."
   });
 
   const defaults = {
@@ -33,14 +33,14 @@
     leaderLines: true, leaderColor: "#171717", labelHalo: true, labelHaloWidth: 1.5, labelHaloColor: "#ffffff",
     markerColor: "#171717", markerShape: "circle", markerSize: 6, markerOutline: true, markerOutlineColor: "#ffffff",
     projection: "conic", rotation: 0, frame: true, ratio: "16:9",
-    background: "#ffffff", transparent: false, zoom: 1, mapX: 0, mapY: 0, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, projectCompanion: true
+    background: "#ffffff", transparent: false, zoom: 1, mapX: 0, mapY: 0, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, lensLon: 91.06, lensLat: 65.36, projectCompanion: true
   };
   const PROJECT_SETTING_KEYS = Object.freeze([
     "gradient", "fillStart", "fillEnd", "angle", "gradientStart", "gradientEnd", "opacity", "selectedColor", "borders",
     "borderColor", "borderWidth", "regionLabels", "regionLabelsMode", "regionFontSize", "cityLabels", "cityFontSize",
     "leaderLines", "leaderColor", "labelHalo", "labelHaloWidth", "labelHaloColor", "markerColor", "markerShape", "markerSize",
     "markerOutline", "markerOutlineColor",
-    "projection", "rotation", "frame", "ratio", "background", "transparent", "zoom", "mapX", "mapY", "viewZoom", "panX", "panY", "lensStrength",
+    "projection", "rotation", "frame", "ratio", "background", "transparent", "zoom", "mapX", "mapY", "viewZoom", "panX", "panY", "lensStrength", "lensLon", "lensLat",
     "projectCompanion"
   ]);
   const VIEW_KEYS = Object.freeze(["viewZoom", "panX", "panY"]);
@@ -50,7 +50,7 @@
     angle: [0, 360], gradientStart: [0, 100], gradientEnd: [0, 100], opacity: [.1, 1], borderWidth: [.2, 4], markerSize: [3, 12],
     regionFontSize: [8, 28], cityFontSize: [8, 28], labelHaloWidth: [.5, 4],
     rotation: [-45, 45], zoom: [.3, 4], mapX: [-4000, 4000], mapY: [-4000, 4000], viewZoom: [.25, 4], panX: [-10000, 10000], panY: [-10000, 10000],
-    lensStrength: [0, 100]
+    lensStrength: [0, 100], lensLon: [-180, 180], lensLat: [-85, 85]
   });
   const ENUM_SETTINGS = Object.freeze({
     projection: ["conic", "mercator", "globe"], ratio: ["16:9", "4:3"], tab: ["regions", "cities", "selected"], regionLabelsMode: ["all", "selected"],
@@ -101,6 +101,8 @@
   let handleDrag = null;
   // The map as an object: its unturned box on the slide, the centre it turns about and the current turn (radians).
   let mapFrame = { x: 0, y: 0, width: BASE_WIDTH, height: RATIO_HEIGHTS["16:9"], center: [BASE_WIDTH / 2, RATIO_HEIGHTS["16:9"] / 2], angle: 0, anglePerDegree: 0 };
+  let lensBase = null;
+  let lensDrag = null;
   const activePointers = new Map();
   const history = { past: [], future: [], current: null, burst: null };
   const MAP_FONT = "Inter, Arial, sans-serif";
@@ -253,13 +255,21 @@
     // Turning the central meridian turns a conic image rigidly about the cone's apex; shifting it back so the frame's
     // centre stays put makes it a turn about that centre — the map rotates like an object, frame and all.
     const turned = turnedProjection(projectionFor, straight, center, state.rotation, scale, translate);
-    const radius = Math.max(box[1][0] - center[0], box[1][1] - center[1], 1);
     let frameBox = box;
+    lensBase = null;
     if (state.projection === "globe") {
-      // The lens is symmetric about the same centre, so it commutes with the turn; its unturned outline is the frame.
-      frameBox = d3.geoPath(createLensProjection(straight, center, radius, state.lensStrength)).bounds(collection);
+      // The lens bulges at the viewpoint (a geographic point, so it travels with the map); its radius reaches the
+      // farthest edge of the box. Both projections put the viewpoint at the image of the same point, so the lens
+      // commutes with the turn and the unturned lens outline is the frame.
+      const viewpoint = [state.lensLon, state.lensLat];
+      const focus = straight(viewpoint);
+      const radius = Math.max(focus[0] - box[0][0], box[1][0] - focus[0], focus[1] - box[0][1], box[1][1] - focus[1], 1);
+      frameBox = d3.geoPath(createLensProjection(straight, focus, radius, state.lensStrength)).bounds(collection);
+      lensBase = turned.projection;
+      projection = createLensProjection(turned.projection, turned.projection(viewpoint), radius, state.lensStrength);
+    } else {
+      projection = turned.projection;
     }
-    projection = state.projection === "globe" ? createLensProjection(turned.projection, center, radius, state.lensStrength) : turned.projection;
     mapFrame = {
       x: frameBox[0][0], y: frameBox[0][1], width: frameBox[1][0] - frameBox[0][0], height: frameBox[1][1] - frameBox[0][1],
       center, angle: turned.angle,
@@ -412,6 +422,7 @@
     d3.select("#export-content").attr("mask", state.frame ? "url(#frame-fade)" : null);
     applyCanvasTransform();
     updateMapSelection();
+    updateLensFocus();
     document.querySelectorAll("[data-projection]").forEach(el => el.classList.toggle("is-active", el.dataset.projection === state.projection));
     document.querySelectorAll("[data-quick-projection]").forEach(el => el.classList.toggle("is-active", (state.projection === "globe" ? "globe" : "conic") === el.dataset.quickProjection));
     document.querySelectorAll(".globe-only").forEach(el => el.hidden = state.projection !== "globe");
@@ -903,6 +914,52 @@
       .attr("transform", `translate(${topX},${topY - 30 * k}) scale(${k})`);
   }
 
+  // The lens viewpoint crosshair sits on the lens's own centre, which the distortion leaves in place.
+  function updateLensFocus() {
+    const focus = d3.select("#lens-focus");
+    if (!lensBase) { focus.attr("display", "none"); return; }
+    const p = lensBase([state.lensLon, state.lensLat]);
+    focus.attr("display", null).attr("transform", `translate(${p[0]},${p[1]}) scale(${1 / screenScale()})`);
+  }
+
+  function bindLensFocus() {
+    const focus = document.getElementById("lens-focus");
+    focus.addEventListener("pointerdown", event => {
+      if (event.button !== 0 && event.pointerType === "mouse") return;
+      event.stopPropagation(); event.preventDefault();
+      lensDrag = { pointerId: event.pointerId, moved: false, startX: event.clientX, startY: event.clientY };
+      focus.setPointerCapture(event.pointerId);
+      focus.classList.add("is-dragging");
+    });
+    focus.addEventListener("pointermove", event => {
+      if (!lensDrag || lensDrag.pointerId !== event.pointerId || !lensBase) return;
+      event.stopPropagation();
+      if (Math.hypot(event.clientX - lensDrag.startX, event.clientY - lensDrag.startY) > 2) lensDrag.moved = true;
+      if (!lensDrag.moved) return;
+      const geo = lensBase.invert(slidePoint(event.clientX, event.clientY));
+      if (!geo || !geo.every(Number.isFinite)) return;
+      state.lensLon = clamp(Math.round(geo[0] * 100) / 100, NUMBER_RANGES.lensLon[0], NUMBER_RANGES.lensLon[1]);
+      state.lensLat = clamp(Math.round(geo[1] * 100) / 100, NUMBER_RANGES.lensLat[0], NUMBER_RANGES.lensLat[1]);
+      scheduleRender(); saveState(true);
+    });
+    const end = event => {
+      if (!lensDrag || lensDrag.pointerId !== event.pointerId) return;
+      event.stopPropagation();
+      focus.classList.remove("is-dragging");
+      if (lensDrag.moved) { suppressSelectionUntil = Date.now() + 160; saveState(); }
+      lensDrag = null;
+    };
+    focus.addEventListener("pointerup", end);
+    focus.addEventListener("pointercancel", end);
+    focus.addEventListener("click", event => event.stopPropagation());
+    focus.addEventListener("dblclick", event => {
+      event.stopPropagation();
+      state.lensLon = defaults.lensLon; state.lensLat = defaults.lensLat;
+      render(); saveState();
+      showToast("Точка обзора — в центре карты");
+    });
+  }
+
   function bindMapHandles() {
     const handles = d3.select("#map-selection").selectAll("[data-handle]");
     handles.on("pointerdown", function (event) {
@@ -1101,6 +1158,7 @@
     });
     canvasViewport.addEventListener("pointerleave", () => { if (mapHover) { mapHover = false; updateMapSelection(); } });
     bindMapHandles();
+    bindLensFocus();
 
     bindCheck("gradient-enabled", "gradient", updateGradientControls);
     bindColor("fill-start", "fillStart");
@@ -1289,9 +1347,9 @@
     });
     canvasViewport.addEventListener("pointermove", event => {
       if (labelDrag) { moveLabelDrag(event); return; }
-      if (!panGesture && !pinchGesture && !handleDrag) {
+      if (!panGesture && !pinchGesture && !handleDrag && !lensDrag) {
         // Hovering the empty space inside the map's box hints that the whole map can be selected there.
-        const hover = !event.target.closest(".region, .city, .map-selection") && pointInMapBounds(event.clientX, event.clientY);
+        const hover = !event.target.closest(".region, .city, .map-selection, .lens-focus") && pointInMapBounds(event.clientX, event.clientY);
         if (hover !== mapHover) { mapHover = hover; updateMapSelection(); }
       }
       if (activePointers.has(event.pointerId)) activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -1437,6 +1495,7 @@
     stage.style.setProperty("--grid-x", `calc(50% + ${view.x}px)`);
     stage.style.setProperty("--grid-y", `calc(50% + ${view.y}px)`);
     if (state.mapSelected || mapHover) updateMapSelection();
+    if (lensBase) updateLensFocus();
   }
 
   function bindCheck(id, key, callback) {
@@ -1875,6 +1934,7 @@
     clone.querySelector("#frame-fade").remove();
     clone.querySelector("#active-outline").remove();
     clone.querySelector("#map-selection").remove();
+    clone.querySelector("#lens-focus").remove();
     const bg = clone.querySelector("#export-background");
     bg.removeAttribute("display");
     bg.setAttribute("x", bounds.x); bg.setAttribute("y", bounds.y); bg.setAttribute("width", bounds.width); bg.setAttribute("height", bounds.height);

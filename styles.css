@@ -178,6 +178,13 @@ kbd { padding: 2px 5px; color: var(--faint); border: 1px solid #e6e3de; border-r
 .map-selection__rotate.is-dragging { cursor: grabbing; }
 .map-selection__corner[data-handle="nw"], .map-selection__corner[data-handle="se"] { cursor: nwse-resize; }
 .map-selection__corner[data-handle="ne"], .map-selection__corner[data-handle="sw"] { cursor: nesw-resize; }
+/* Lens viewpoint: the crosshair marks the most magnified point; screen-only, drawn in screen pixels via scale(). */
+.lens-focus { cursor: move; pointer-events: all; }
+.lens-focus__ring { fill: rgba(255,255,255,.85); stroke: var(--accent); stroke-width: 1.5; }
+.lens-focus line { stroke: var(--accent); stroke-width: 1.5; stroke-linecap: round; }
+.lens-focus__dot { fill: var(--accent); }
+.lens-focus:hover .lens-focus__ring, .lens-focus.is-dragging .lens-focus__ring { fill: var(--accent-soft); }
+.lens-focus.is-dragging { cursor: grabbing; }
 .tooltip { position: fixed; z-index: 80; max-width: 250px; padding: 8px 10px; border-radius: 8px; color: #fff; background: rgba(18,18,18,.92); box-shadow: 0 6px 20px rgba(0,0,0,.18); pointer-events: none; transform: translate(-50%, calc(-100% - 10px)); font-size: 12px; }
 .tooltip b, .tooltip small { display: block; }
 .tooltip small { margin-top: 2px; color: #bbb; font-size: 11px; }
