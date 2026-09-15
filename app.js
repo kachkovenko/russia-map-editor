@@ -99,6 +99,8 @@
   let renderQueued = false;
   let mapHover = false;
   let handleDrag = null;
+  // The map as an object: its unturned box on the slide, the centre it turns about and the current turn (radians).
+  let mapFrame = { x: 0, y: 0, width: BASE_WIDTH, height: RATIO_HEIGHTS["16:9"], center: [BASE_WIDTH / 2, RATIO_HEIGHTS["16:9"] / 2], angle: 0, anglePerDegree: 0 };
   const activePointers = new Map();
   const history = { past: [], future: [], current: null, burst: null };
   const MAP_FONT = "Inter, Arial, sans-serif";
@@ -234,37 +236,58 @@
       ? d3.geoMercator().rotate([-centerLon, 0])
       : d3.geoConicEqualArea().parallels([50, 70]).rotate([-centerLon, 0]);
     const collection = { type: "FeatureCollection", features };
-    // The unrotated map is fitted into the slide once; rotation keeps that scale and the map's centre in place, so
-    // turning the map behaves like turning an object rather than re-fitting a differently shaped outline.
     const unrotated = projectionFor(105).fitExtent([[width * .075, height * .12], [width * .925, height * .88]], collection);
     const fitScale = unrotated.scale();
     fitTranslate = unrotated.translate();
-    const baseProjection = projectionFor(105 + state.rotation).scale(fitScale).translate(fitTranslate);
-    if (state.rotation) {
-      const b = d3.geoPath(baseProjection).bounds(collection);
-      fitTranslate = [fitTranslate[0] + width / 2 - (b[0][0] + b[1][0]) / 2, fitTranslate[1] + height / 2 - (b[0][1] + b[1][1]) / 2];
-    }
+    const unitBounds = d3.geoPath(unrotated).bounds(collection);
+
     // The map's scale and offset on the slide; without a frame the map is just fitted, the export crops to it anyway.
     const placement = mapPlacement();
-    baseProjection.scale(fitScale * placement.zoom)
-      .translate([fitTranslate[0] + placement.x, fitTranslate[1] + placement.y]);
-    projection = state.projection === "globe"
-      ? createLensProjection(baseProjection, collection, state.lensStrength)
-      : baseProjection;
+    const scale = fitScale * placement.zoom;
+    const translate = [fitTranslate[0] + placement.x, fitTranslate[1] + placement.y];
+    const place = p => [(p[0] - fitTranslate[0]) * placement.zoom + translate[0], (p[1] - fitTranslate[1]) * placement.zoom + translate[1]];
+    const box = [place(unitBounds[0]), place(unitBounds[1])];
+    const center = [(box[0][0] + box[1][0]) / 2, (box[0][1] + box[1][1]) / 2];
+    const straight = projectionFor(105).scale(scale).translate(translate);
+
+    // Turning the central meridian turns a conic image rigidly about the cone's apex; shifting it back so the frame's
+    // centre stays put makes it a turn about that centre — the map rotates like an object, frame and all.
+    const turned = turnedProjection(projectionFor, straight, center, state.rotation, scale, translate);
+    const radius = Math.max(box[1][0] - center[0], box[1][1] - center[1], 1);
+    let frameBox = box;
+    if (state.projection === "globe") {
+      // The lens is symmetric about the same centre, so it commutes with the turn; its unturned outline is the frame.
+      frameBox = d3.geoPath(createLensProjection(straight, center, radius, state.lensStrength)).bounds(collection);
+    }
+    projection = state.projection === "globe" ? createLensProjection(turned.projection, center, radius, state.lensStrength) : turned.projection;
+    mapFrame = {
+      x: frameBox[0][0], y: frameBox[0][1], width: frameBox[1][0] - frameBox[0][0], height: frameBox[1][1] - frameBox[0][1],
+      center, angle: turned.angle,
+      // Screen angle per degree of rotation (0 for Mercator, whose "rotation" is only a horizontal shift).
+      anglePerDegree: (turnedProjection(projectionFor, straight, center, 10, scale, translate).angle) / 10
+    };
+  }
+
+  // Projection with the central meridian shifted by `rotation` degrees, translated so `center` maps onto itself;
+  // `angle` is the resulting turn of the image on screen (radians, clockwise positive).
+  function turnedProjection(projectionFor, straight, center, rotation, scale, translate) {
+    const projection = projectionFor(105 + rotation).scale(scale).translate(translate);
+    if (!rotation) return { projection, angle: 0 };
+    const geoCenter = straight.invert(center);
+    const moved = projection(geoCenter);
+    projection.translate([translate[0] + center[0] - moved[0], translate[1] + center[1] - moved[1]]);
+    const probe = projection(straight.invert([center[0], center[1] - 100]));
+    let angle = Math.atan2(probe[1] - center[1], probe[0] - center[0]) + Math.PI / 2;
+    if (angle > Math.PI) angle -= 2 * Math.PI;
+    if (angle < -Math.PI) angle += 2 * Math.PI;
+    return { projection, angle };
   }
 
   function mapPlacement() {
     return state.frame ? { zoom: state.zoom, x: state.mapX, y: state.mapY } : { zoom: 1, x: 0, y: 0 };
   }
 
-  function createLensProjection(baseProjection, collection, strength) {
-    const bounds = d3.geoPath(baseProjection).bounds(collection);
-    const cx = (bounds[0][0] + bounds[1][0]) / 2;
-    const cy = (bounds[0][1] + bounds[1][1]) / 2;
-    const radius = Math.max(
-      Math.abs(bounds[0][0] - cx), Math.abs(bounds[1][0] - cx),
-      Math.abs(bounds[0][1] - cy), Math.abs(bounds[1][1] - cy), 1
-    );
+  function createLensProjection(baseProjection, [cx, cy], radius, strength) {
     const amount = 1.5 * strength / 100;
     const distort = point => {
       if (!point) return null;
@@ -827,9 +850,19 @@
     updateMapSelection();
   }
 
-  function mapBounds() {
-    const b = regionsLayer.node().getBBox();
-    return { x: b.x, y: b.y, width: b.width, height: b.height };
+  // Corners of the frame in slide coordinates, turned with the map.
+  function frameCorners() {
+    const f = mapFrame;
+    const local = { nw: [f.x, f.y], ne: [f.x + f.width, f.y], se: [f.x + f.width, f.y + f.height], sw: [f.x, f.y + f.height] };
+    const out = {};
+    Object.entries(local).forEach(([name, p]) => { out[name] = turnPoint(p, f.center, f.angle); });
+    return out;
+  }
+
+  function turnPoint([x, y], [cx, cy], angle) {
+    const cos = Math.cos(angle), sin = Math.sin(angle);
+    const dx = x - cx, dy = y - cy;
+    return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
   }
 
   // Slide units per screen pixel, including the board zoom.
@@ -844,9 +877,9 @@
   }
 
   function pointInMapBounds(clientX, clientY) {
-    const [x, y] = slidePoint(clientX, clientY);
-    const b = mapBounds();
-    return x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height;
+    const f = mapFrame;
+    const [x, y] = turnPoint(slidePoint(clientX, clientY), f.center, -f.angle);
+    return x >= f.x && x <= f.x + f.width && y >= f.y && y <= f.y + f.height;
   }
 
   function updateMapSelection() {
@@ -854,15 +887,20 @@
     const shown = state.mapSelected || mapHover;
     overlay.attr("display", shown ? null : "none").classed("is-hover", !state.mapSelected);
     if (!shown) return;
-    const b = mapBounds();
+    const b = mapFrame;
     const k = 1 / screenScale();
+    // Everything is laid out in the unturned box; the whole overlay then turns with the map.
+    overlay.attr("transform", `rotate(${b.angle * 180 / Math.PI} ${b.center[0]} ${b.center[1]})`);
     overlay.select(".map-selection__box").attr("x", b.x).attr("y", b.y).attr("width", b.width).attr("height", b.height);
     const corners = { nw: [b.x, b.y], ne: [b.x + b.width, b.y], se: [b.x + b.width, b.y + b.height], sw: [b.x, b.y + b.height] };
     overlay.selectAll(".map-selection__corner").attr("display", state.frame ? null : "none")
       .attr("transform", function () { const c = corners[this.dataset.handle]; return `translate(${c[0]},${c[1]}) scale(${k})`; });
     const topX = b.x + b.width / 2, topY = b.y;
-    overlay.select(".map-selection__stem").attr("x1", topX).attr("y1", topY).attr("x2", topX).attr("y2", topY - 22 * k);
-    overlay.select(".map-selection__rotate").attr("transform", `translate(${topX},${topY - 30 * k}) scale(${k})`);
+    const turnable = Math.abs(b.anglePerDegree) > 1e-6;
+    overlay.select(".map-selection__stem").attr("display", turnable ? null : "none")
+      .attr("x1", topX).attr("y1", topY).attr("x2", topX).attr("y2", topY - 22 * k);
+    overlay.select(".map-selection__rotate").attr("display", turnable ? null : "none")
+      .attr("transform", `translate(${topX},${topY - 30 * k}) scale(${k})`);
   }
 
   function bindMapHandles() {
@@ -871,15 +909,14 @@
       if (event.button !== 0 && event.pointerType === "mouse") return;
       event.stopPropagation(); event.preventDefault();
       const kind = this.dataset.handle;
-      const b = mapBounds();
-      const center = [b.x + b.width / 2, b.y + b.height / 2];
-      const corners = { nw: [b.x, b.y], ne: [b.x + b.width, b.y], se: [b.x + b.width, b.y + b.height], sw: [b.x, b.y + b.height] };
+      const center = mapFrame.center;
+      const corners = frameCorners();
       const opposite = { nw: "se", ne: "sw", se: "nw", sw: "ne" };
       const p = slidePoint(event.clientX, event.clientY);
       handleDrag = {
         kind, element: this, pointerId: event.pointerId, zoom0: state.zoom, mapX0: state.mapX, mapY0: state.mapY,
         rotation0: state.rotation, center, corner: corners[kind], anchor: corners[opposite[kind]],
-        angle0: Math.atan2(p[1] - center[1], p[0] - center[0])
+        angle0: Math.atan2(p[1] - center[1], p[0] - center[0]), anglePerDegree: mapFrame.anglePerDegree
       };
       this.setPointerCapture(event.pointerId);
       this.classList.add("is-dragging");
@@ -889,9 +926,13 @@
       event.stopPropagation();
       const p = slidePoint(event.clientX, event.clientY);
       if (handleDrag.kind === "rotate") {
+        if (Math.abs(handleDrag.anglePerDegree) < 1e-6) return;
         const angle = Math.atan2(p[1] - handleDrag.center[1], p[0] - handleDrag.center[0]);
-        const delta = (angle - handleDrag.angle0) * 180 / Math.PI;
-        state.rotation = clamp(Math.round(handleDrag.rotation0 + delta), NUMBER_RANGES.rotation[0], NUMBER_RANGES.rotation[1]);
+        let delta = angle - handleDrag.angle0;
+        if (delta > Math.PI) delta -= 2 * Math.PI;
+        if (delta < -Math.PI) delta += 2 * Math.PI;
+        // The handle moves in screen degrees; the projection's rotation is in degrees of longitude.
+        state.rotation = clamp(Math.round(handleDrag.rotation0 + delta / handleDrag.anglePerDegree), NUMBER_RANGES.rotation[0], NUMBER_RANGES.rotation[1]);
         document.getElementById("rotation").value = state.rotation;
         document.getElementById("rotation-value").textContent = `${state.rotation}°`;
       } else {
