@@ -1090,9 +1090,11 @@
       if (event.button !== 0 && event.button !== 1) return;
       if (event.button === 1) event.preventDefault();
       activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      canvasViewport.setPointerCapture(event.pointerId);
+      // No pointer capture yet: a captured pointer makes Chrome fire the click on the viewport instead of the region
+      // or city under it. The pointer is captured once a drag or pinch actually starts (see below).
       if (activePointers.size === 2) {
         panGesture = null;
+        activePointers.forEach((_, pointerId) => capturePointer(pointerId));
         const bounds = canvasViewport.getBoundingClientRect();
         const [a, b] = [...activePointers.values()];
         pinchGesture = {
@@ -1141,7 +1143,7 @@
       if (!panGesture || panGesture.pointerId !== event.pointerId) return;
       const dx = event.clientX - panGesture.startX;
       const dy = event.clientY - panGesture.startY;
-      if (Math.hypot(dx, dy) > 4) panGesture.moved = true;
+      if (!panGesture.moved && Math.hypot(dx, dy) > 4) { panGesture.moved = true; capturePointer(event.pointerId); }
       if (state.frame) {
         const k = slideUnitsPerPixel();
         state.mapX = clamp(panGesture.mapX + dx * k, NUMBER_RANGES.mapX[0], NUMBER_RANGES.mapX[1]);
@@ -1175,6 +1177,10 @@
     };
     canvasViewport.addEventListener("pointerup", endPointer);
     canvasViewport.addEventListener("pointercancel", endPointer);
+  }
+
+  function capturePointer(pointerId) {
+    try { canvasViewport.setPointerCapture(pointerId); } catch (_) {}
   }
 
   // Slide units (the 1600-wide viewBox) per screen pixel of the artboard.
