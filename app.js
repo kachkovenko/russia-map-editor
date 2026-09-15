@@ -30,20 +30,22 @@
     tab: "regions", gradient: true, fillStart: "#6d5dfc", fillEnd: "#29c7ac",
     angle: 25, gradientStart: 0, gradientEnd: 100, opacity: 1, selectedColor: "#ff5f46", borders: true, borderColor: "#ffffff",
     borderWidth: 0.8, regionLabels: false, regionLabelsMode: "all", regionFontSize: 11, cityLabels: true, cityFontSize: 12,
-    leaderLines: true, labelHalo: true, labelHaloWidth: 1.5, markerColor: "#171717", markerShape: "circle", markerSize: 6,
+    leaderLines: true, leaderColor: "#171717", labelHalo: true, labelHaloWidth: 1.5, labelHaloColor: "#ffffff",
+    markerColor: "#171717", markerShape: "circle", markerSize: 6, markerOutline: true, markerOutlineColor: "#ffffff",
     projection: "conic", rotation: 0, frame: true, ratio: "16:9",
     background: "#f7f7fb", transparent: false, zoom: 1, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, projectCompanion: true
   };
   const PROJECT_SETTING_KEYS = Object.freeze([
     "gradient", "fillStart", "fillEnd", "angle", "gradientStart", "gradientEnd", "opacity", "selectedColor", "borders",
     "borderColor", "borderWidth", "regionLabels", "regionLabelsMode", "regionFontSize", "cityLabels", "cityFontSize",
-    "leaderLines", "labelHalo", "labelHaloWidth", "markerColor", "markerShape", "markerSize",
+    "leaderLines", "leaderColor", "labelHalo", "labelHaloWidth", "labelHaloColor", "markerColor", "markerShape", "markerSize",
+    "markerOutline", "markerOutlineColor",
     "projection", "rotation", "frame", "ratio", "background", "transparent", "zoom", "viewZoom", "panX", "panY", "lensStrength",
     "projectCompanion"
   ]);
   const VIEW_KEYS = Object.freeze(["viewZoom", "panX", "panY"]);
-  const BOOLEAN_SETTINGS = new Set(["gradient", "borders", "regionLabels", "cityLabels", "leaderLines", "labelHalo", "frame", "transparent", "projectCompanion"]);
-  const COLOR_SETTINGS = new Set(["fillStart", "fillEnd", "selectedColor", "borderColor", "markerColor", "background"]);
+  const BOOLEAN_SETTINGS = new Set(["gradient", "borders", "regionLabels", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "frame", "transparent", "projectCompanion"]);
+  const COLOR_SETTINGS = new Set(["fillStart", "fillEnd", "selectedColor", "borderColor", "leaderColor", "labelHaloColor", "markerColor", "markerOutlineColor", "background"]);
   const NUMBER_RANGES = Object.freeze({
     angle: [0, 360], gradientStart: [0, 100], gradientEnd: [0, 100], opacity: [.1, 1], borderWidth: [.2, 4], markerSize: [3, 12],
     regionFontSize: [8, 28], cityFontSize: [8, 28], labelHaloWidth: [.5, 4],
@@ -309,7 +311,7 @@
       .attr("display", state.borders ? null : "none");
 
     const halo = state.labelHalo ? state.labelHaloWidth * 2 : 0;
-    const haloStroke = halo ? haloColor() : "none";
+    const haloStroke = halo ? state.labelHaloColor : "none";
     shownRegionLabels = layoutLabels();
     labelGroups
       .attr("display", d => shownRegionLabels.has(d.properties.id) ? null : "none")
@@ -329,14 +331,15 @@
       group.select(".city-marker__ring").attr("display", geo.shape === "circle" ? null : "none")
         .attr("r", geo.reach).attr("stroke", state.markerColor);
       group.select(".city-marker").attr("d", markerD).attr("fill", state.markerColor)
-        .attr("stroke", "#fff").attr("stroke-width", 1.5).attr("stroke-linejoin", "round");
+        .attr("stroke", state.markerOutline ? state.markerOutlineColor : "none")
+        .attr("stroke-width", state.markerOutline ? 1.5 : 0).attr("stroke-linejoin", "round");
       group.select(".city-marker__eye").attr("display", geo.shape === "pin" ? null : "none")
-        .attr("cx", 0).attr("cy", geo.cy).attr("r", geo.r * .38).attr("fill", "#fff");
+        .attr("cx", 0).attr("cy", geo.cy).attr("r", geo.r * .38).attr("fill", state.markerOutlineColor);
       const leader = state.cityLabels ? d.label.leader : null;
       group.select(".city-leader").attr("display", leader ? null : "none")
         .attr("x1", leader ? leader.x1 : 0).attr("y1", leader ? leader.y1 : 0)
         .attr("x2", leader ? leader.x2 : 0).attr("y2", leader ? leader.y2 : 0)
-        .attr("stroke", state.markerColor).attr("stroke-width", 1).attr("stroke-opacity", .85);
+        .attr("stroke", state.leaderColor).attr("stroke-width", 1).attr("stroke-opacity", .85);
       group.select(".city-label")
         .attr("display", state.cityLabels ? null : "none")
         .attr("x", d.label.dx).attr("y", d.label.dy)
@@ -413,8 +416,6 @@
     }
     return shown;
   }
-
-  function haloColor() { return state.transparent ? "#ffffff" : state.background; }
 
   // Real text metrics from a canvas using the map's font stack, so placement and PPTX boxes match what is drawn.
   function textWidth(text, fontSize) {
@@ -844,10 +845,14 @@
     bindRange("region-font-size", "regionFontSize", "region-font-size-value", v => `${v} px`, Number);
     bindCheck("city-labels-enabled", "cityLabels", updateLabelModeControls);
     bindRange("city-font-size", "cityFontSize", "city-font-size-value", v => `${v} px`, Number);
-    bindCheck("leader-lines", "leaderLines");
+    bindCheck("leader-lines", "leaderLines", updateLabelModeControls);
+    bindColor("leader-color", "leaderColor");
     bindCheck("label-halo", "labelHalo", updateLabelModeControls);
     bindRange("label-halo-width", "labelHaloWidth", "label-halo-width-value", v => `${String(v).replace(".", ",")} px`, Number);
+    bindColor("label-halo-color", "labelHaloColor");
     bindColor("marker-color", "markerColor");
+    bindCheck("marker-outline", "markerOutline", updateLabelModeControls);
+    bindColor("marker-outline-color", "markerOutlineColor");
     document.querySelectorAll("[data-marker-shape]").forEach(button => button.addEventListener("click", () => {
       state.markerShape = button.dataset.markerShape;
       updateLabelModeControls(); restyle(); saveState();
@@ -1170,6 +1175,8 @@
     document.getElementById("region-label-options").hidden = !state.regionLabels;
     document.getElementById("city-label-options").hidden = !state.cityLabels;
     document.getElementById("halo-options").hidden = !state.labelHalo;
+    document.getElementById("leader-color-control").hidden = !state.leaderLines;
+    document.getElementById("marker-outline-options").hidden = !state.markerOutline;
     document.querySelectorAll("[data-labels-mode]").forEach(el => el.classList.toggle("is-active", el.dataset.labelsMode === state.regionLabelsMode));
     document.querySelectorAll("[data-marker-shape]").forEach(el => el.classList.toggle("is-active", el.dataset.markerShape === state.markerShape));
   }
@@ -1200,7 +1207,8 @@
       "borders-enabled": state.borders, "border-color": state.borderColor, "border-width": state.borderWidth,
       "region-labels-enabled": state.regionLabels, "city-labels-enabled": state.cityLabels, "marker-color": state.markerColor,
       "region-font-size": state.regionFontSize, "city-font-size": state.cityFontSize, "leader-lines": state.leaderLines,
-      "label-halo": state.labelHalo, "label-halo-width": state.labelHaloWidth,
+      "label-halo": state.labelHalo, "label-halo-width": state.labelHaloWidth, "label-halo-color": state.labelHaloColor,
+      "leader-color": state.leaderColor, "marker-outline": state.markerOutline, "marker-outline-color": state.markerOutlineColor,
       "marker-size": state.markerSize, "rotation": state.rotation, "lens-strength": state.lensStrength, "frame-enabled": state.frame,
       "background-color": state.background, "transparent-background": state.transparent,
       "project-companion": state.projectCompanion
@@ -1594,7 +1602,7 @@
     const { x, y, w, h, slideW, slideH } = imageBox;
     const unit = w / bounds.width; // inches per SVG unit
     const glow = state.labelHalo
-      ? { size: Math.round(clamp(state.labelHaloWidth * unit * 72 * 2, .5, 12) * 10) / 10, opacity: 1, color: haloColor().slice(1).toUpperCase() }
+      ? { size: Math.round(clamp(state.labelHaloWidth * unit * 72 * 2, .5, 12) * 10) / 10, opacity: 1, color: state.labelHaloColor.slice(1).toUpperCase() }
       : null;
     const place = (text, px, py, anchor, fontPx, color) => {
       const baseX = x + (px - bounds.x) * unit;

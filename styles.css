@@ -233,6 +233,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .sub-options { padding: 2px 0 6px 12px; border-left: 2px solid var(--line); margin: 0 0 6px; }
 .sub-options .range-row { margin-top: 8px; }
 .sub-options .switch-row { min-height: 30px; }
+.sub-options .color-control--wide { margin-top: 6px; }
 .shape-row { display: grid; grid-template-columns: 1fr auto; align-items: center; margin-top: 8px; color: var(--text-soft); font-size: 12px; }
 .shape-picker { display: flex; gap: 3px; padding: 3px; border-radius: 8px; background: #f1f0ed; }
 .shape-picker button { display: grid; place-items: center; width: 30px; height: 26px; border: 0; border-radius: 6px; color: #8f8c86; background: transparent; cursor: pointer; }

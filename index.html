@@ -213,12 +213,12 @@
               <div class="sub-options" id="city-label-options">
                 <label class="range-row"><span>Размер подписей <output id="city-font-size-value">12 px</output></span><input id="city-font-size" type="range" min="8" max="28" value="12"></label>
                 <label class="switch-row"><span>Линии выноски</span><input class="switch" id="leader-lines" type="checkbox" checked></label>
-                <p class="microcopy" id="city-labels-hint">Подписи расставляются без наложений; если рядом с маркером нет места, подпись отодвигается и соединяется с ним линией. Любую подпись можно перетащить мышью, двойной клик возвращает её на место.</p>
+                <label class="color-control color-control--wide" id="leader-color-control"><span>Цвет выноски</span><span><input id="leader-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="leader-color" value="#171717" maxlength="7" aria-label="HEX-код линии выноски" spellcheck="false"></span></label>
               </div>
               <label class="switch-row"><span>Контур текста</span><input class="switch" id="label-halo" type="checkbox" checked></label>
               <div class="sub-options" id="halo-options">
                 <label class="range-row"><span>Толщина контура <output id="label-halo-width-value">1,5 px</output></span><input id="label-halo-width" type="range" min="0.5" max="4" step="0.5" value="1.5"></label>
-                <p class="microcopy">Цвет контура — как у фона слайда. В PPTX он сохраняется эффектом «Свечение» текста: подложки под буквами в PowerPoint нет, а его «Контур текста» съедает штрихи.</p>
+                <label class="color-control color-control--wide"><span>Цвет контура</span><span><input id="label-halo-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="label-halo-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код контура текста" spellcheck="false"></span></label>
               </div>
               <label class="color-control color-control--wide"><span>Маркеры городов</span><span><input id="marker-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="marker-color" value="#171717" maxlength="7" aria-label="HEX-код маркеров" spellcheck="false"></span></label>
               <div class="shape-row">
@@ -231,6 +231,10 @@
                 </div>
               </div>
               <label class="range-row"><span>Размер маркера <output id="marker-size-value">6</output></span><input id="marker-size" type="range" min="3" max="12" value="6"></label>
+              <label class="switch-row"><span>Контур маркера</span><input class="switch" id="marker-outline" type="checkbox" checked></label>
+              <div class="sub-options" id="marker-outline-options">
+                <label class="color-control color-control--wide"><span>Цвет контура</span><span><input id="marker-outline-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="marker-outline-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код контура маркера" spellcheck="false"></span></label>
+              </div>
             </div>
           </div>
         </section>
