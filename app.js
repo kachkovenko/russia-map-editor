@@ -4,6 +4,7 @@
   const SVG_NS = "http://www.w3.org/2000/svg";
   const BASE_WIDTH = 1600;
   const RATIO_HEIGHTS = { "16:9": 900, "4:3": 1200 };
+  const GRID_SPACING = 24;
   const PROJECT_FORMAT = "map.kachkovenko.kontur";
   const PROJECT_VERSION = 1;
   const MAX_PROJECT_BYTES = 256 * 1024;
@@ -59,6 +60,7 @@
   const citiesLayer = d3.select("#cities-layer");
   const labelsLayer = d3.select("#region-labels");
   const tooltip = document.getElementById("tooltip");
+  const stage = document.getElementById("stage");
   const artboard = document.getElementById("artboard");
   const canvasViewport = document.getElementById("canvas-viewport");
   const objectList = document.getElementById("object-list");
@@ -348,7 +350,6 @@
 
     artboard.classList.toggle("is-transparent", state.transparent && state.frame);
     artboard.style.backgroundColor = state.frame && !state.transparent ? state.background : "";
-    updateCropPreview();
     applyCanvasTransform();
     document.querySelectorAll("[data-projection]").forEach(el => el.classList.toggle("is-active", el.dataset.projection === state.projection));
     document.querySelectorAll("[data-quick-projection]").forEach(el => el.classList.toggle("is-active", (state.projection === "globe" ? "globe" : "conic") === el.dataset.quickProjection));
@@ -444,16 +445,6 @@
       case "pin": return `M0,0L${-.8 * r},${-r}A${r},${r} 0 1 1 ${.8 * r},${-r}Z`;
       default: return `M${-r},0a${r},${r} 0 1 0 ${2 * r},0a${r},${r} 0 1 0 ${-2 * r},0Z`;
     }
-  }
-
-  // Screen-only outline of the area that a frameless export will be cropped to.
-  function updateCropPreview() {
-    const preview = d3.select("#crop-preview");
-    if (state.frame) { preview.attr("display", "none"); return; }
-    const b = paddedBounds(document.getElementById("export-content").getBBox(), 26);
-    preview.attr("display", null).attr("x", b.x).attr("y", b.y).attr("width", b.width).attr("height", b.height)
-      .attr("fill", state.transparent ? "url(#checker)" : state.background)
-      .attr("stroke", "#a3a09a").attr("stroke-width", 1).attr("stroke-dasharray", "6 4").attr("vector-effect", "non-scaling-stroke");
   }
 
   // Greedy placement: bigger cities pick first; try right, left, above, below; manual offsets always win.
@@ -1087,6 +1078,13 @@
   function applyCanvasTransform() {
     artboard.style.transform = `translate(-50%, -50%) translate(${state.panX}px, ${state.panY}px) scale(${state.viewZoom})`;
     document.getElementById("zoom-level").textContent = `${Math.round(state.viewZoom * 100)}%`;
+    // Dot grid follows the board; spacing doubles/halves so dots stay between 16 and 48 px at any zoom.
+    let spacing = GRID_SPACING * state.viewZoom;
+    while (spacing < 16) spacing *= 2;
+    while (spacing > 48) spacing /= 2;
+    stage.style.setProperty("--grid-size", `${spacing}px`);
+    stage.style.setProperty("--grid-x", `calc(50% + ${state.panX}px)`);
+    stage.style.setProperty("--grid-y", `calc(50% + ${state.panY}px)`);
   }
 
   function bindCheck(id, key, callback) {
@@ -1482,8 +1480,6 @@
     clone.setAttribute("viewBox", `${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`);
     clone.setAttribute("width", bounds.width);
     clone.setAttribute("height", bounds.height);
-    clone.querySelector("#crop-preview").remove();
-    clone.querySelector("#checker").remove();
     const bg = clone.querySelector("#export-background");
     bg.removeAttribute("display");
     bg.setAttribute("x", bounds.x); bg.setAttribute("y", bounds.y); bg.setAttribute("width", bounds.width); bg.setAttribute("height", bounds.height);

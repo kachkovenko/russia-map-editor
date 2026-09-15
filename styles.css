@@ -13,6 +13,7 @@
   --panel: #fff;
   --field: #faf9f7;
   --canvas: #e9e8e4;
+  --canvas-dot: #cfcdc7;
   --accent: #6d5dfc;
   --accent-soft: #efedff;
   --shadow: 0 18px 60px rgba(26, 24, 20, .12), 0 2px 8px rgba(26, 24, 20, .07);
@@ -115,7 +116,8 @@ kbd { padding: 2px 5px; color: var(--faint); border: 1px solid #e6e3de; border-r
 .object-meta { padding: 3px 6px; border-radius: 4px; color: var(--faint); background: #f2f1ee; font-size: 10px; font-weight: 700; letter-spacing: .03em; }
 .empty-state { padding: 30px 12px; color: var(--muted); text-align: center; font-size: 12.5px; line-height: 1.55; }
 
-.stage { position: relative; min-width: 0; overflow: hidden; background: var(--canvas); }
+/* Infinite-board backdrop: the dot grid pans and zooms with the artboard (see applyCanvasTransform). */
+.stage { position: relative; min-width: 0; overflow: hidden; background-color: var(--canvas); background-image: radial-gradient(circle, var(--canvas-dot) 1px, transparent 1.6px); background-size: var(--grid-size, 24px) var(--grid-size, 24px); background-position: var(--grid-x, 50%) var(--grid-y, 50%); }
 .stage-toolbar { position: absolute; z-index: 5; top: 16px; left: 50%; display: flex; align-items: center; gap: 18px; transform: translateX(-50%); }
 .view-switch { display: flex; gap: 2px; padding: 3px; border: 1px solid rgba(0,0,0,.06); border-radius: 9px; background: rgba(255,255,255,.9); box-shadow: 0 2px 12px rgba(33,31,27,.06); backdrop-filter: blur(10px); }
 .view-switch button { padding: 6px 12px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; font-size: 11.5px; cursor: pointer; }
@@ -128,7 +130,6 @@ kbd { padding: 2px 5px; color: var(--faint); border: 1px solid #e6e3de; border-r
 .artboard.ratio-4-3 { width: min(100%, calc((100vh - 180px) * 1.3333)); aspect-ratio: 4 / 3; }
 .artboard.no-frame { background: transparent !important; box-shadow: none; }
 .artboard.is-transparent { background-color: transparent; background-image: repeating-conic-gradient(#e2e0dc 0 25%, #f3f2ef 0 50%); background-size: 18px 18px; }
-.crop-preview { pointer-events: none; }
 #map { position: relative; width: 100%; height: 100%; display: block; overflow: visible; }
 /* Map text keeps the export font stack so the screen matches PNG/SVG/PPTX output. */
 #map text { font-family: Inter, Arial, sans-serif; }
