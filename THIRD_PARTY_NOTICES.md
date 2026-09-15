@@ -1,8 +1,9 @@
 # Third-party notices
 
-- D3.js v7 — ISC License, https://d3js.org/
-- topojson-client v3 — ISC License, https://github.com/topojson/topojson-client
+- D3.js 7.9.0 — ISC License, https://d3js.org/
+- topojson-client 3.1.0 — ISC License, https://github.com/topojson/topojson-client
 - PptxGenJS 4.0.1 — MIT License, https://github.com/gitbrent/PptxGenJS
+- JSZip 3.10.1 (bundled inside `lib/pptxgen.bundle.js`, also used directly for the ZIP export) — MIT License, https://github.com/Stuk/jszip
 - Google Sans (variable, `fonts/*.woff2`) — SIL Open Font License 1.1, https://fonts.google.com/specimen/Google+Sans
 - City catalogue (`data/cities.js`) — built from Wikidata, CC0 1.0 (public domain dedication), https://www.wikidata.org/ — see `tools/build-cities.mjs`.
 - Region geometry — adapted from GeoJSON Atlas commit `644874ada665a0f2c0c81a0d47adacea97365c30`, CC0 1.0, https://github.com/BenPortner/geojson-atlas
