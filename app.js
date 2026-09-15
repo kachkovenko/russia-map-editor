@@ -33,14 +33,14 @@
     leaderLines: true, leaderColor: "#171717", labelHalo: true, labelHaloWidth: 1.5, labelHaloColor: "#ffffff",
     markerColor: "#171717", markerShape: "circle", markerSize: 6, markerOutline: true, markerOutlineColor: "#ffffff",
     projection: "conic", rotation: 0, frame: true, ratio: "16:9",
-    background: "#f7f7fb", transparent: false, zoom: 1, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, projectCompanion: true
+    background: "#ffffff", transparent: false, zoom: 1, mapX: 0, mapY: 0, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, projectCompanion: true
   };
   const PROJECT_SETTING_KEYS = Object.freeze([
     "gradient", "fillStart", "fillEnd", "angle", "gradientStart", "gradientEnd", "opacity", "selectedColor", "borders",
     "borderColor", "borderWidth", "regionLabels", "regionLabelsMode", "regionFontSize", "cityLabels", "cityFontSize",
     "leaderLines", "leaderColor", "labelHalo", "labelHaloWidth", "labelHaloColor", "markerColor", "markerShape", "markerSize",
     "markerOutline", "markerOutlineColor",
-    "projection", "rotation", "frame", "ratio", "background", "transparent", "zoom", "viewZoom", "panX", "panY", "lensStrength",
+    "projection", "rotation", "frame", "ratio", "background", "transparent", "zoom", "mapX", "mapY", "viewZoom", "panX", "panY", "lensStrength",
     "projectCompanion"
   ]);
   const VIEW_KEYS = Object.freeze(["viewZoom", "panX", "panY"]);
@@ -49,7 +49,8 @@
   const NUMBER_RANGES = Object.freeze({
     angle: [0, 360], gradientStart: [0, 100], gradientEnd: [0, 100], opacity: [.1, 1], borderWidth: [.2, 4], markerSize: [3, 12],
     regionFontSize: [8, 28], cityFontSize: [8, 28], labelHaloWidth: [.5, 4],
-    rotation: [-45, 45], zoom: [.55, 2.5], viewZoom: [.25, 4], panX: [-10000, 10000], panY: [-10000, 10000], lensStrength: [0, 100]
+    rotation: [-45, 45], zoom: [.3, 4], mapX: [-4000, 4000], mapY: [-4000, 4000], viewZoom: [.25, 4], panX: [-10000, 10000], panY: [-10000, 10000],
+    lensStrength: [0, 100]
   });
   const ENUM_SETTINGS = Object.freeze({
     projection: ["conic", "mercator", "globe"], ratio: ["16:9", "4:3"], tab: ["regions", "cities", "selected"], regionLabelsMode: ["all", "selected"],
@@ -89,6 +90,8 @@
   let suppressSelectionUntil = 0;
   let foundForSelect = null;
   let labelGeometryFresh = false;
+  let fitTranslate = [BASE_WIDTH / 2, RATIO_HEIGHTS["16:9"] / 2];
+  let renderQueued = false;
   const activePointers = new Map();
   const history = { past: [], future: [], current: null, burst: null };
   const MAP_FONT = "Inter, Arial, sans-serif";
@@ -222,20 +225,26 @@
       ? d3.geoMercator().rotate([-centerLon, 0])
       : d3.geoConicEqualArea().parallels([50, 70]).rotate([-centerLon, 0]);
 
-    const padX = state.frame ? width * .075 : width * .035;
-    const padY = state.frame ? height * .12 : height * .05;
     const collection = { type: "FeatureCollection", features };
-    baseProjection.fitExtent([[padX, padY], [width - padX, height - padY]], collection);
-    baseProjection.scale(baseProjection.scale() * state.zoom);
+    baseProjection.fitExtent([[width * .075, height * .12], [width * .925, height * .88]], collection);
+    fitTranslate = baseProjection.translate();
+    // The map's scale and offset on the slide; without a frame the map is just fitted, the export crops to it anyway.
+    const placement = mapPlacement();
+    baseProjection.scale(baseProjection.scale() * placement.zoom)
+      .translate([fitTranslate[0] + placement.x, fitTranslate[1] + placement.y]);
     projection = state.projection === "globe"
       ? createLensProjection(baseProjection, collection, state.lensStrength)
       : baseProjection;
   }
 
+  function mapPlacement() {
+    return state.frame ? { zoom: state.zoom, x: state.mapX, y: state.mapY } : { zoom: 1, x: 0, y: 0 };
+  }
+
   function createLensProjection(baseProjection, collection, strength) {
     const bounds = d3.geoPath(baseProjection).bounds(collection);
-    const cx = width / 2;
-    const cy = height / 2;
+    const cx = (bounds[0][0] + bounds[1][0]) / 2;
+    const cy = (bounds[0][1] + bounds[1][1]) / 2;
     const radius = Math.max(
       Math.abs(bounds[0][0] - cx), Math.abs(bounds[1][0] - cx),
       Math.abs(bounds[0][1] - cy), Math.abs(bounds[1][1] - cy), 1
@@ -351,8 +360,9 @@
         .classed("is-manual", !!state.cityLabelOffsets[d.id]);
     });
 
-    artboard.classList.toggle("is-transparent", state.transparent && state.frame);
-    artboard.style.backgroundColor = state.frame && !state.transparent ? state.background : "";
+    artboard.style.backgroundColor = state.frame ? state.background : "";
+    d3.select("#frame-fade-window").attr("width", width).attr("height", height);
+    d3.select("#export-content").attr("mask", state.frame ? "url(#frame-fade)" : null);
     applyCanvasTransform();
     document.querySelectorAll("[data-projection]").forEach(el => el.classList.toggle("is-active", el.dataset.projection === state.projection));
     document.querySelectorAll("[data-quick-projection]").forEach(el => el.classList.toggle("is-active", (state.projection === "globe" ? "globe" : "conic") === el.dataset.quickProjection));
@@ -609,6 +619,9 @@
     document.getElementById("crop-note").textContent = state.frame
       ? "Экспортируется весь слайд выбранного формата."
       : "Экспорт автоматически кадрируется по карте и меткам.";
+    document.getElementById("stage-hint").textContent = state.frame
+      ? "Колесо — масштаб карты · перетаскивание — положение на слайде · подписи городов можно двигать"
+      : "Колесо — масштаб · перетаскивание — перемещение · подписи городов можно двигать";
   }
 
   function regionMatches(feature, query) {
@@ -877,9 +890,9 @@
       updateCanvasSize(); render(); saveState();
     }));
 
-    document.getElementById("zoom-in").addEventListener("click", () => zoomCanvas(state.viewZoom * 1.2));
-    document.getElementById("zoom-out").addEventListener("click", () => zoomCanvas(state.viewZoom / 1.2));
-    document.getElementById("fit-map").addEventListener("click", fitCanvas);
+    document.getElementById("zoom-in").addEventListener("click", () => state.frame ? zoomMap(state.zoom * 1.2) : zoomCanvas(state.viewZoom * 1.2));
+    document.getElementById("zoom-out").addEventListener("click", () => state.frame ? zoomMap(state.zoom / 1.2) : zoomCanvas(state.viewZoom / 1.2));
+    document.getElementById("fit-map").addEventListener("click", () => state.frame ? resetMapPlacement() : fitCanvas());
     bindCanvasNavigation();
 
     bindResetButton();
@@ -969,13 +982,15 @@
     button.addEventListener("blur", () => { if (armed) disarm(); });
   }
 
+  // With the frame on, the slide stays put and gestures place the map on it (scale + offset, exported as-is).
+  // Without a frame the same gestures navigate the infinite board.
   function bindCanvasNavigation() {
     canvasViewport.addEventListener("wheel", event => {
       event.preventDefault();
+      const factor = Math.exp(-event.deltaY * (event.ctrlKey ? .006 : .0015));
+      if (state.frame) { zoomMap(state.zoom * factor, event.clientX, event.clientY); return; }
       const bounds = canvasViewport.getBoundingClientRect();
-      const speed = event.ctrlKey ? .006 : .0015;
-      const nextZoom = state.viewZoom * Math.exp(-event.deltaY * speed);
-      zoomCanvas(nextZoom, event.clientX - bounds.left, event.clientY - bounds.top);
+      zoomCanvas(state.viewZoom * factor, event.clientX - bounds.left, event.clientY - bounds.top);
     }, { passive: false });
 
     canvasViewport.addEventListener("pointerdown", event => {
@@ -990,7 +1005,8 @@
         pinchGesture = {
           distance: Math.max(Math.hypot(a.x - b.x, a.y - b.y), 1),
           midX: (a.x + b.x) / 2 - bounds.left, midY: (a.y + b.y) / 2 - bounds.top,
-          zoom: state.viewZoom, panX: state.panX, panY: state.panY, left: bounds.left, top: bounds.top
+          zoom: state.viewZoom, panX: state.panX, panY: state.panY, left: bounds.left, top: bounds.top,
+          mapZoom: state.zoom, lastMidX: (a.x + b.x) / 2, lastMidY: (a.y + b.y) / 2
         };
         canvasViewport.classList.add("is-panning");
         return;
@@ -998,7 +1014,7 @@
       if (activePointers.size > 2) return;
       panGesture = {
         pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
-        panX: state.panX, panY: state.panY, moved: false
+        panX: state.panX, panY: state.panY, mapX: state.mapX, mapY: state.mapY, moved: false
       };
       canvasViewport.classList.add("is-panning");
     });
@@ -1008,6 +1024,15 @@
       if (pinchGesture && activePointers.size >= 2) {
         const [a, b] = [...activePointers.values()];
         const distance = Math.max(Math.hypot(a.x - b.x, a.y - b.y), 1);
+        if (state.frame) {
+          const midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
+          const k = slideUnitsPerPixel();
+          state.mapX = clamp(state.mapX + (midX - pinchGesture.lastMidX) * k, NUMBER_RANGES.mapX[0], NUMBER_RANGES.mapX[1]);
+          state.mapY = clamp(state.mapY + (midY - pinchGesture.lastMidY) * k, NUMBER_RANGES.mapY[0], NUMBER_RANGES.mapY[1]);
+          pinchGesture.lastMidX = midX; pinchGesture.lastMidY = midY;
+          zoomMap(pinchGesture.mapZoom * distance / pinchGesture.distance, midX, midY, true);
+          return;
+        }
         const midX = (a.x + b.x) / 2 - pinchGesture.left;
         const midY = (a.y + b.y) / 2 - pinchGesture.top;
         const nextZoom = clamp(pinchGesture.zoom * distance / pinchGesture.distance, NUMBER_RANGES.viewZoom[0], NUMBER_RANGES.viewZoom[1]);
@@ -1024,6 +1049,13 @@
       const dx = event.clientX - panGesture.startX;
       const dy = event.clientY - panGesture.startY;
       if (Math.hypot(dx, dy) > 4) panGesture.moved = true;
+      if (state.frame) {
+        const k = slideUnitsPerPixel();
+        state.mapX = clamp(panGesture.mapX + dx * k, NUMBER_RANGES.mapX[0], NUMBER_RANGES.mapX[1]);
+        state.mapY = clamp(panGesture.mapY + dy * k, NUMBER_RANGES.mapY[0], NUMBER_RANGES.mapY[1]);
+        scheduleRender();
+        return;
+      }
       state.panX = clamp(panGesture.panX + dx, -10000, 10000);
       state.panY = clamp(panGesture.panY + dy, -10000, 10000);
       applyCanvasTransform();
@@ -1035,7 +1067,7 @@
         if (activePointers.size < 2) {
           pinchGesture = null;
           suppressSelectionUntil = Date.now() + 250;
-          persist();
+          if (state.frame) saveState(); else persist();
           if (!activePointers.size) canvasViewport.classList.remove("is-panning");
         }
         return;
@@ -1043,13 +1075,47 @@
       if (!panGesture || panGesture.pointerId !== event.pointerId) return;
       if (panGesture.moved) {
         suppressSelectionUntil = Date.now() + 160;
-        persist();
+        if (state.frame) saveState(); else persist();
       }
       panGesture = null;
       canvasViewport.classList.remove("is-panning");
     };
     canvasViewport.addEventListener("pointerup", endPointer);
     canvasViewport.addEventListener("pointercancel", endPointer);
+  }
+
+  // Slide units (the 1600-wide viewBox) per screen pixel of the artboard.
+  function slideUnitsPerPixel() {
+    return width / Math.max(artboard.getBoundingClientRect().width, 1);
+  }
+
+  // Scale the map on the slide about the pointer: the projection scales about its translate point, so the offset is
+  // corrected to keep the map point under the cursor where it is.
+  function zoomMap(nextZoom, clientX, clientY, continuous = true) {
+    const rect = artboard.getBoundingClientRect();
+    const k = width / Math.max(rect.width, 1);
+    const ax = clientX === undefined ? width / 2 : (clientX - rect.left) * k;
+    const ay = clientY === undefined ? height / 2 : (clientY - rect.top) * k;
+    const newZoom = clamp(nextZoom, NUMBER_RANGES.zoom[0], NUMBER_RANGES.zoom[1]);
+    const factor = newZoom / state.zoom;
+    const tx = fitTranslate[0] + state.mapX, ty = fitTranslate[1] + state.mapY;
+    state.mapX = clamp(ax - (ax - tx) * factor - fitTranslate[0], NUMBER_RANGES.mapX[0], NUMBER_RANGES.mapX[1]);
+    state.mapY = clamp(ay - (ay - ty) * factor - fitTranslate[1], NUMBER_RANGES.mapY[0], NUMBER_RANGES.mapY[1]);
+    state.zoom = newZoom;
+    scheduleRender();
+    saveState(continuous);
+  }
+
+  function resetMapPlacement() {
+    state.zoom = 1; state.mapX = 0; state.mapY = 0;
+    render(); saveState();
+  }
+
+  // Drags and wheel ticks re-project the map; coalesce them to one render per animation frame.
+  function scheduleRender() {
+    if (renderQueued) return;
+    renderQueued = true;
+    requestAnimationFrame(() => { renderQueued = false; render(); });
   }
 
   function setProjection(value) {
@@ -1081,15 +1147,17 @@
   }
 
   function applyCanvasTransform() {
-    artboard.style.transform = `translate(-50%, -50%) translate(${state.panX}px, ${state.panY}px) scale(${state.viewZoom})`;
-    document.getElementById("zoom-level").textContent = `${Math.round(state.viewZoom * 100)}%`;
+    // With a frame the slide is pinned to the centre of the stage; the board view only applies without one.
+    const view = state.frame ? { zoom: 1, x: 0, y: 0 } : { zoom: state.viewZoom, x: state.panX, y: state.panY };
+    artboard.style.transform = `translate(-50%, -50%) translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
+    document.getElementById("zoom-level").textContent = `${Math.round((state.frame ? state.zoom : state.viewZoom) * 100)}%`;
     // Dot grid follows the board; spacing doubles/halves so dots stay between 16 and 48 px at any zoom.
-    let spacing = GRID_SPACING * state.viewZoom;
+    let spacing = GRID_SPACING * view.zoom;
     while (spacing < 16) spacing *= 2;
     while (spacing > 48) spacing /= 2;
     stage.style.setProperty("--grid-size", `${spacing}px`);
-    stage.style.setProperty("--grid-x", `calc(50% + ${state.panX}px)`);
-    stage.style.setProperty("--grid-y", `calc(50% + ${state.panY}px)`);
+    stage.style.setProperty("--grid-x", `calc(50% + ${view.x}px)`);
+    stage.style.setProperty("--grid-y", `calc(50% + ${view.y}px)`);
   }
 
   function bindCheck(id, key, callback) {
@@ -1488,6 +1556,8 @@
     clone.setAttribute("viewBox", `${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`);
     clone.setAttribute("width", bounds.width);
     clone.setAttribute("height", bounds.height);
+    clone.querySelector("#export-content").removeAttribute("mask");
+    clone.querySelector("#frame-fade").remove();
     const bg = clone.querySelector("#export-background");
     bg.removeAttribute("display");
     bg.setAttribute("x", bounds.x); bg.setAttribute("y", bounds.y); bg.setAttribute("width", bounds.width); bg.setAttribute("height", bounds.height);

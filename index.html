@@ -117,6 +117,10 @@
                 <filter id="marker-shadow" x="-50%" y="-50%" width="200%" height="200%">
                   <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity=".25"></feDropShadow>
                 </filter>
+                <mask id="frame-fade" maskUnits="userSpaceOnUse" x="-100000" y="-100000" width="200000" height="200000">
+                  <rect x="-100000" y="-100000" width="200000" height="200000" fill="#fff" fill-opacity=".3"></rect>
+                  <rect id="frame-fade-window" width="1600" height="900" fill="#fff"></rect>
+                </mask>
               </defs>
               <rect class="export-background" id="export-background"></rect>
               <g id="export-content">
@@ -264,8 +268,8 @@
                 <button class="is-active" data-ratio="16:9">16:9</button>
                 <button data-ratio="4:3">4:3</button>
               </div>
-              <label class="color-control color-control--wide"><span>Фон слайда</span><span><input id="background-color" type="color" value="#f7f7fb"><input class="hex-input" data-color-text-for="background-color" value="#F7F7FB" maxlength="7" aria-label="HEX-код фона" spellcheck="false"></span></label>
-              <label class="switch-row"><span>Прозрачный фон</span><input class="switch" id="transparent-background" type="checkbox"></label>
+              <label class="color-control color-control--wide"><span>Цвет слайда</span><span><input id="background-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="background-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код цвета слайда" spellcheck="false"></span></label>
+              <label class="switch-row"><span>Прозрачный фон при экспорте</span><input class="switch" id="transparent-background" type="checkbox"></label>
               <p class="microcopy" id="crop-note">Экспортируется весь слайд выбранного формата.</p>
             </div>
           </div>

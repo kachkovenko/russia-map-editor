@@ -126,10 +126,9 @@ kbd { padding: 2px 5px; color: var(--faint); border: 1px solid #e6e3de; border-r
 .canvas-viewport { position: absolute; inset: 56px 34px 40px; overflow: hidden; cursor: grab; touch-action: none; }
 .canvas-viewport.is-panning { cursor: grabbing; }
 .canvas-viewport.is-panning .region, .canvas-viewport.is-panning .city-marker { cursor: grabbing; }
-.artboard { position: absolute; left: 50%; top: 50%; width: min(100%, calc((100vh - 180px) * 1.7778)); aspect-ratio: 16 / 9; background: #f7f7fb; box-shadow: 0 12px 50px rgba(31,28,23,.15); transform: translate(-50%, -50%); transform-origin: center; transition: width .2s, aspect-ratio .2s, box-shadow .2s; will-change: transform; }
+.artboard { position: absolute; left: 50%; top: 50%; width: min(100%, calc((100vh - 180px) * 1.7778)); aspect-ratio: 16 / 9; background: #fff; box-shadow: 0 12px 50px rgba(31,28,23,.15); transform: translate(-50%, -50%); transform-origin: center; transition: width .2s, aspect-ratio .2s, box-shadow .2s; will-change: transform; }
 .artboard.ratio-4-3 { width: min(100%, calc((100vh - 180px) * 1.3333)); aspect-ratio: 4 / 3; }
 .artboard.no-frame { background: transparent !important; box-shadow: none; }
-.artboard.is-transparent { background-color: transparent; background-image: repeating-conic-gradient(#e2e0dc 0 25%, #f3f2ef 0 50%); background-size: 18px 18px; }
 #map { position: relative; width: 100%; height: 100%; display: block; overflow: visible; }
 /* Map text keeps the export font stack so the screen matches PNG/SVG/PPTX output. */
 #map text { font-family: Inter, Arial, sans-serif; }
