@@ -4,7 +4,7 @@
   const SVG_NS = "http://www.w3.org/2000/svg";
   const BASE_WIDTH = 1600;
   const RATIO_HEIGHTS = { "16:9": 900, "4:3": 1200 };
-  const GRID_SPACING = 24;
+  const GRID_SPACING = 16;
   const PROJECT_FORMAT = "map.kachkovenko.kontur";
   const PROJECT_VERSION = 1;
   const MAX_PROJECT_BYTES = 256 * 1024;
@@ -42,23 +42,24 @@
   const defaults = {
     tab: "regions", gradient: true, fillStart: "#6d5dfc", fillEnd: "#29c7ac",
     angle: 25, gradientStart: 0, gradientEnd: 100, opacity: 1, selectedColor: "#ff5f46", borders: true, borderColor: "#ffffff",
-    borderWidth: 0.8, regionLabels: false, regionLabelsMode: "all", regionFontSize: 11, cityLabels: true, cityFontSize: 12,
+    borderWidth: 0.8, regionLabels: false, regionLabelsMode: "all", regionLabelsCaps: false, regionFontSize: 11, cityLabels: true, cityFontSize: 12,
     labelFont: "inter", leaderLines: true, leaderColor: "#171717", labelHalo: true, labelHaloWidth: 1.5, labelHaloColor: "#ffffff",
     markerColor: "#171717", markerShape: "circle", markerSize: 6, markerOutline: true, markerOutlineColor: "#ffffff",
-    projection: "conic", rotation: 0, frame: true, ratio: "16:9",
+    projection: "conic", rotation: 0, graticule: false, graticuleStep: 10, graticuleColor: "#171717", compass: false, frame: true, ratio: "16:9",
     background: "#ffffff", transparent: false, zoom: 1, mapX: 0, mapY: 0, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, lensLon: 91.06, lensLat: 65.36, projectCompanion: true, fontCompanion: true
   };
   const PROJECT_SETTING_KEYS = Object.freeze([
     "gradient", "fillStart", "fillEnd", "angle", "gradientStart", "gradientEnd", "opacity", "selectedColor", "borders",
-    "borderColor", "borderWidth", "regionLabels", "regionLabelsMode", "regionFontSize", "cityLabels", "cityFontSize",
+    "borderColor", "borderWidth", "regionLabels", "regionLabelsMode", "regionLabelsCaps", "regionFontSize", "cityLabels", "cityFontSize",
     "labelFont", "leaderLines", "leaderColor", "labelHalo", "labelHaloWidth", "labelHaloColor", "markerColor", "markerShape", "markerSize",
     "markerOutline", "markerOutlineColor",
-    "projection", "rotation", "frame", "ratio", "background", "transparent", "zoom", "mapX", "mapY", "viewZoom", "panX", "panY", "lensStrength", "lensLon", "lensLat",
+    "projection", "rotation", "graticule", "graticuleStep", "graticuleColor", "compass", "frame", "ratio", "background", "transparent",
+    "zoom", "mapX", "mapY", "viewZoom", "panX", "panY", "lensStrength", "lensLon", "lensLat",
     "projectCompanion", "fontCompanion"
   ]);
   const VIEW_KEYS = Object.freeze(["viewZoom", "panX", "panY"]);
-  const BOOLEAN_SETTINGS = new Set(["gradient", "borders", "regionLabels", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "frame", "transparent", "projectCompanion", "fontCompanion"]);
-  const COLOR_SETTINGS = new Set(["fillStart", "fillEnd", "selectedColor", "borderColor", "leaderColor", "labelHaloColor", "markerColor", "markerOutlineColor", "background"]);
+  const BOOLEAN_SETTINGS = new Set(["gradient", "borders", "regionLabels", "regionLabelsCaps", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "graticule", "compass", "frame", "transparent", "projectCompanion", "fontCompanion"]);
+  const COLOR_SETTINGS = new Set(["fillStart", "fillEnd", "selectedColor", "borderColor", "leaderColor", "labelHaloColor", "markerColor", "markerOutlineColor", "graticuleColor", "background"]);
   const NUMBER_RANGES = Object.freeze({
     angle: [0, 360], gradientStart: [0, 100], gradientEnd: [0, 100], opacity: [.1, 1], borderWidth: [.2, 4], markerSize: [3, 12],
     regionFontSize: [8, 28], cityFontSize: [8, 28], labelHaloWidth: [.5, 4],
@@ -67,8 +68,12 @@
   });
   const ENUM_SETTINGS = Object.freeze({
     projection: ["conic", "mercator", "globe"], ratio: ["16:9", "4:3"], tab: ["regions", "cities", "selected"], regionLabelsMode: ["all", "selected"],
-    markerShape: ["circle", "square", "diamond", "pin"], labelFont: Object.keys(LABEL_FONTS)
+    markerShape: ["circle", "square", "diamond", "pin"], labelFont: Object.keys(LABEL_FONTS), graticuleStep: [10, 5]
   });
+  // Graticule window: Russia's extent with a margin, so the net reads as a sector of the globe around the country.
+  const GRATICULE_EXTENT = [[15, 40], [195, 82]];
+  // Spaced capitals for region names: tracking as a share of the font size (PPTX gets the same value in points).
+  const CAPS_TRACKING = .14;
   // `selectedRegions` are the marked (highlighted, listed) regions; `activeRegions` is the transient pick on the map
   // whose fill is being edited; `regionColors` holds per-region fills that override the shared highlight colour.
   const state = {
@@ -122,6 +127,8 @@
   const measureContext = document.createElement("canvas").getContext("2d");
   const measureCache = new Map();
   let shownRegionLabels = new Set();
+  let graticuleKey = null;
+  let cursorGeoFrame = null;
   // Candidate directions for a city label in order of preference: right, left, above, below, diagonals, then the in-betweens.
   const LABEL_DIRECTIONS = Object.freeze([0, 180, -90, 90, -45, -135, 45, 135, -22.5, 22.5, -157.5, 157.5, -67.5, 67.5, -112.5, 112.5].map(deg => {
     const a = deg * Math.PI / 180;
@@ -164,8 +171,7 @@
       .on("keydown", (event, d) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); pickRegion(d.properties.id, event.shiftKey); } });
 
     labelGroups = labelsLayer.selectAll("text").data(features, d => d.properties.id).join("text")
-      .attr("class", "region-label")
-      .text(d => shortRegionName(d.properties.name));
+      .attr("class", "region-label");
 
     cityGroups = citiesLayer.selectAll("g").data(cities, d => d.id).join("g")
       .attr("class", "city")
@@ -335,6 +341,18 @@
       return [cx + dx * factor, cy + dy * factor];
     };
     const lens = coordinates => distort(baseProjection(coordinates));
+    // d = d'/(a + 1 − a·d') undoes r' = r·(a + 1)/(a·r/R + 1); the coordinate readout relies on it.
+    lens.invert = point => {
+      const dx = point[0] - cx;
+      const dy = point[1] - cy;
+      const distance = Math.hypot(dx, dy);
+      if (!distance || !amount) return baseProjection.invert(point);
+      const normalized = distance / radius;
+      if (normalized >= 1) return baseProjection.invert(point);
+      const original = normalized / (amount + 1 - amount * normalized);
+      const factor = original / normalized;
+      return baseProjection.invert([cx + dx * factor, cy + dy * factor]);
+    };
     lens.stream = output => baseProjection.stream({
       point(x, y) { const p = distort([x, y]); output.point(p[0], p[1]); },
       lineStart() { output.lineStart(); },
@@ -356,6 +374,7 @@
     d3.select("#country-outline").attr("d", path(outline));
 
     labelGeometryFresh = false;
+    graticuleKey = null;
     cities.forEach(city => {
       const p = projection([city.lon, city.lat]);
       city.point = p && isFinite(p[0]) && isFinite(p[1]) ? p : null;
@@ -407,6 +426,8 @@
     labelGroups
       .attr("display", d => shownRegionLabels.has(d.properties.id) ? null : "none")
       .attr("transform", d => shownRegionLabels.has(d.properties.id) ? `translate(${d.centroid[0]},${d.centroid[1]})` : "translate(-9999,-9999)")
+      .text(regionLabelText)
+      .attr("letter-spacing", state.regionLabelsCaps ? state.regionFontSize * CAPS_TRACKING : null)
       .attr("font-size", state.regionFontSize)
       .attr("fill", darken(state.fillStart, .7))
       .attr("stroke", haloStroke)
@@ -442,6 +463,8 @@
         .classed("is-manual", !!state.cityLabelOffsets[d.id]);
     });
 
+    updateGraticule();
+    updateCompass(haloStroke, halo);
     artboard.style.backgroundColor = state.frame ? state.background : "";
     d3.select("#frame-fade-window").attr("width", width).attr("height", height);
     d3.select("#export-content").attr("mask", state.frame ? "url(#frame-fade)" : null);
@@ -452,6 +475,63 @@
     document.querySelectorAll("[data-quick-projection]").forEach(el => el.classList.toggle("is-active", (state.projection === "globe" ? "globe" : "conic") === el.dataset.quickProjection));
     document.querySelectorAll(".globe-only").forEach(el => el.hidden = state.projection !== "globe");
     document.getElementById("projection-help").textContent = PROJECTION_HELP[state.projection];
+  }
+
+  // Meridians and parallels over the map, part of the export. The net is only regenerated when the projection or the
+  // step changes; colour and visibility are plain restyles.
+  function updateGraticule() {
+    const net = d3.select("#graticule");
+    if (!state.graticule) { net.attr("display", "none"); return; }
+    const key = `${state.graticuleStep}`;
+    if (graticuleKey !== key) {
+      const step = state.graticuleStep;
+      net.attr("d", path(d3.geoGraticule().extent(GRATICULE_EXTENT).step([step, step])()));
+      graticuleKey = key;
+    }
+    net.attr("display", null).attr("stroke", state.graticuleColor).attr("stroke-opacity", .28).attr("stroke-width", .7);
+  }
+
+  // North arrow: sits in the slide's top-right corner (by the map's box without a frame) and turns with the map, so it
+  // points where the central meridian points at the frame's centre. Drawn in the marker colour with the label halo.
+  function updateCompass(haloStroke, halo) {
+    const compass = d3.select("#compass");
+    if (!state.compass) { compass.attr("display", "none"); return; }
+    if (compass.select("path").empty()) {
+      compass.append("path").attr("class", "compass__north").attr("d", "M0,-30 L8,8 L0,3 Z");
+      compass.append("path").attr("class", "compass__south").attr("d", "M0,-30 L-8,8 L0,3 Z");
+      compass.append("text").attr("y", -37).attr("font-size", 15).text("С");
+    }
+    const ne = frameCorners().ne;
+    const anchor = state.frame ? [width - 70, 82] : [ne[0] + 46, ne[1] + 30];
+    const colour = state.markerColor;
+    compass.attr("display", null)
+      .attr("transform", `translate(${anchor[0]},${anchor[1]}) rotate(${mapFrame.angle * 180 / Math.PI})`);
+    compass.select(".compass__north").attr("fill", colour).attr("stroke", haloStroke).attr("stroke-width", halo ? 1.5 : 0).attr("paint-order", "stroke");
+    compass.select(".compass__south").attr("fill", "none").attr("stroke", colour).attr("stroke-width", 1).attr("stroke-linejoin", "round");
+    compass.select("text").attr("fill", colour).attr("stroke", haloStroke).attr("stroke-width", halo);
+  }
+
+  // Coordinate readout under the cursor (screen only). One DOM write per frame; hidden when the point lies outside
+  // the projection's image, which the round trip through invert detects.
+  function updateCursorGeo(clientX, clientY) {
+    cancelAnimationFrame(cursorGeoFrame);
+    cursorGeoFrame = requestAnimationFrame(() => {
+      const el = document.getElementById("cursor-geo");
+      let text = "—";
+      if (clientX != null && projection && projection.invert) {
+        const point = slidePoint(clientX, clientY);
+        const geo = projection.invert(point);
+        const back = geo && isFinite(geo[0]) && isFinite(geo[1]) && Math.abs(geo[1]) <= 90 ? projection(geo) : null;
+        if (back && Math.hypot(back[0] - point[0], back[1] - point[1]) < 1) text = formatGeo(geo);
+      }
+      el.textContent = text;
+    });
+  }
+
+  function formatGeo([lon, lat]) {
+    const deg = value => Math.abs(value).toFixed(2).replace(".", ",");
+    const lonNorm = ((lon + 540) % 360) - 180;
+    return `${deg(lat)}° ${lat < 0 ? "ю. ш." : "с. ш."} · ${deg(lonNorm)}° ${lonNorm < 0 ? "з. д." : "в. д."}`;
   }
 
   // Centroids and bounds are only needed while region labels are on, so they are computed lazily after a reprojection.
@@ -468,10 +548,11 @@
       });
       labelGeometryFresh = true;
     }
+    const key = `${fontSize}|${state.regionLabelsCaps}`;
     features.forEach(d => {
-      if (d.labelFontSize === fontSize) return;
-      d.labelFontSize = fontSize;
-      d.labelWidth = textWidth(shortRegionName(d.properties.name), fontSize);
+      if (d.labelFontSize === key) return;
+      d.labelFontSize = key;
+      d.labelWidth = regionLabelWidth(d, fontSize);
       d.labelFits = !!d.centroid && d.labelWidth <= d.boxWidth * 1.1 && fontSize * 1.2 <= d.boxHeight;
     });
   }
@@ -509,6 +590,17 @@
         });
     }
     return shown;
+  }
+
+  function regionLabelText(d) {
+    const name = shortRegionName(d.properties.name);
+    return state.regionLabelsCaps ? name.toUpperCase() : name;
+  }
+
+  // Tracking is added after every glyph, so a spaced label is wider by one gap per character.
+  function regionLabelWidth(d, fontSize) {
+    const text = regionLabelText(d);
+    return textWidth(text, fontSize) + (state.regionLabelsCaps ? fontSize * CAPS_TRACKING * text.length : 0);
   }
 
   // Real text metrics from a canvas using the map's font stack, so placement and PPTX boxes match what is drawn.
@@ -1178,7 +1270,10 @@
       if (pointInMapBounds(event.clientX, event.clientY)) selectMap();
       else { deselectMap(); clearActiveRegions(); }
     });
-    canvasViewport.addEventListener("pointerleave", () => { if (mapHover) { mapHover = false; updateMapSelection(); } });
+    canvasViewport.addEventListener("pointerleave", () => {
+      updateCursorGeo(null);
+      if (mapHover) { mapHover = false; updateMapSelection(); }
+    });
     bindMapHandles();
     bindLensFocus();
 
@@ -1189,7 +1284,7 @@
     bindGradientStops();
     bindRange("fill-opacity", "opacity", "opacity-value", v => `${v}%`, v => Number(v) / 100);
     bindColor("selected-color", "selectedColor");
-    bindCheck("borders-enabled", "borders", () => document.getElementById("border-controls").style.opacity = state.borders ? 1 : .4);
+    bindCheck("borders-enabled", "borders", updateLabelModeControls);
     bindColor("border-color", "borderColor");
     document.getElementById("border-width").addEventListener("input", event => {
       const value = Number(event.target.value);
@@ -1202,6 +1297,7 @@
       state.regionLabelsMode = button.dataset.labelsMode;
       updateLabelModeControls(); restyle(); saveState();
     }));
+    bindCheck("region-labels-caps", "regionLabelsCaps");
     bindRange("region-font-size", "regionFontSize", "region-font-size-value", v => `${v} px`, Number);
     bindCheck("city-labels-enabled", "cityLabels", updateLabelModeControls);
     bindRange("city-font-size", "cityFontSize", "city-font-size-value", v => `${v} px`, Number);
@@ -1220,6 +1316,13 @@
     bindRange("marker-size", "markerSize", "marker-size-value", v => v, Number);
     bindRange("rotation", "rotation", "rotation-value", v => `${v}°`, Number, true);
     bindRange("lens-strength", "lensStrength", "lens-strength-value", v => `${v}%`, Number, true);
+    bindCheck("graticule-enabled", "graticule", updateProjectionControls);
+    document.querySelectorAll("[data-graticule-step]").forEach(button => button.addEventListener("click", () => {
+      state.graticuleStep = Number(button.dataset.graticuleStep);
+      updateProjectionControls(); restyle(); saveState();
+    }));
+    bindColor("graticule-color", "graticuleColor");
+    bindCheck("compass-enabled", "compass");
     bindCheck("frame-enabled", "frame", () => { updateCanvasSize(); render(); });
     bindColor("background-color", "background");
     bindCheck("transparent-background", "transparent");
@@ -1246,6 +1349,7 @@
     document.getElementById("zoom-out").addEventListener("click", () => state.frame ? zoomMap(state.zoom / 1.2) : zoomCanvas(state.viewZoom / 1.2));
     document.getElementById("fit-map").addEventListener("click", () => state.frame ? resetMapPlacement() : fitCanvas());
     bindCanvasNavigation();
+    if (window.ResizeObserver) new ResizeObserver(() => applyCanvasTransform()).observe(stage);
 
     bindResetButton();
     const exportMain = document.getElementById("export-main");
@@ -1387,6 +1491,7 @@
       canvasViewport.classList.add("is-panning");
     });
     canvasViewport.addEventListener("pointermove", event => {
+      if (event.pointerType === "mouse") updateCursorGeo(event.clientX, event.clientY);
       if (labelDrag) { moveLabelDrag(event); return; }
       if (!panGesture && !pinchGesture && !handleDrag && !lensDrag) {
         // Hovering the empty space inside the map's box hints that the whole map can be selected there.
@@ -1528,13 +1633,16 @@
     const view = state.frame ? { zoom: 1, x: 0, y: 0 } : { zoom: state.viewZoom, x: state.panX, y: state.panY };
     artboard.style.transform = `translate(-50%, -50%) translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
     document.getElementById("zoom-level").textContent = `${Math.round((state.frame ? state.zoom : state.viewZoom) * 100)}%`;
-    // Dot grid follows the board; spacing doubles/halves so dots stay between 16 and 48 px at any zoom.
+    // Graph paper follows the board: minor lines stay between 16 and 32 px (major every fourth), and the net is
+    // anchored to the viewport's centre, where the slide sits.
     let spacing = GRID_SPACING * view.zoom;
     while (spacing < 16) spacing *= 2;
-    while (spacing > 48) spacing /= 2;
+    while (spacing >= 32) spacing /= 2;
+    const originX = canvasViewport.offsetLeft + canvasViewport.clientWidth / 2 - stage.clientWidth / 2;
+    const originY = canvasViewport.offsetTop + canvasViewport.clientHeight / 2 - stage.clientHeight / 2;
     stage.style.setProperty("--grid-size", `${spacing}px`);
-    stage.style.setProperty("--grid-x", `calc(50% + ${view.x}px)`);
-    stage.style.setProperty("--grid-y", `calc(50% + ${view.y}px)`);
+    stage.style.setProperty("--grid-x", `calc(50% + ${view.x + originX}px)`);
+    stage.style.setProperty("--grid-y", `calc(50% + ${view.y + originY}px)`);
     if (state.mapSelected || mapHover) updateMapSelection();
     if (lensBase) updateLensFocus();
   }
@@ -1637,7 +1745,13 @@
       : `${font.name} есть на любом компьютере — прикладывать шрифт не нужно`;
   }
 
+  function updateProjectionControls() {
+    document.getElementById("graticule-options").hidden = !state.graticule;
+    document.querySelectorAll("[data-graticule-step]").forEach(el => el.classList.toggle("is-active", Number(el.dataset.graticuleStep) === state.graticuleStep));
+  }
+
   function updateLabelModeControls() {
+    document.getElementById("border-controls").hidden = !state.borders;
     document.getElementById("region-label-options").hidden = !state.regionLabels;
     document.getElementById("city-label-options").hidden = !state.cityLabels;
     document.getElementById("halo-options").hidden = !state.labelHalo;
@@ -1671,12 +1785,13 @@
       "gradient-angle": state.angle, "gradient-start-position": state.gradientStart, "gradient-end-position": state.gradientEnd,
       "fill-opacity": Math.round(state.opacity * 100), "selected-color": state.selectedColor,
       "borders-enabled": state.borders, "border-color": state.borderColor, "border-width": state.borderWidth,
-      "region-labels-enabled": state.regionLabels, "city-labels-enabled": state.cityLabels, "marker-color": state.markerColor,
+      "region-labels-enabled": state.regionLabels, "region-labels-caps": state.regionLabelsCaps, "city-labels-enabled": state.cityLabels, "marker-color": state.markerColor,
       "region-font-size": state.regionFontSize, "city-font-size": state.cityFontSize, "leader-lines": state.leaderLines,
       "label-halo": state.labelHalo, "label-halo-width": state.labelHaloWidth, "label-halo-color": state.labelHaloColor,
       "leader-color": state.leaderColor, "marker-outline": state.markerOutline, "marker-outline-color": state.markerOutlineColor,
       "marker-size": state.markerSize, "rotation": state.rotation, "lens-strength": state.lensStrength, "frame-enabled": state.frame,
       "background-color": state.background, "transparent-background": state.transparent,
+      "graticule-enabled": state.graticule, "graticule-color": state.graticuleColor, "compass-enabled": state.compass,
       "project-companion": state.projectCompanion, "font-companion": state.fontCompanion, "label-font": state.labelFont
     };
     Object.entries(pairs).forEach(([id, value]) => {
@@ -1699,10 +1814,10 @@
     document.getElementById("label-halo-width-value").textContent = `${String(state.labelHaloWidth).replace(".", ",")} px`;
     document.getElementById("rotation-value").textContent = `${Math.round(state.rotation)}°`;
     document.getElementById("lens-strength-value").textContent = `${Math.round(state.lensStrength)}%`;
-    document.getElementById("border-controls").style.opacity = state.borders ? 1 : .4;
     updateFontCompanionOption();
     updateGradientControls();
     updateLabelModeControls();
+    updateProjectionControls();
     document.querySelectorAll("[data-ratio]").forEach(el => el.classList.toggle("is-active", el.dataset.ratio === state.ratio));
     syncTabs();
     document.getElementById("search").value = state.query;
@@ -2000,7 +2115,7 @@
     });
     clone.querySelectorAll(".is-hover, .is-selected, .is-manual").forEach(el => el.classList.remove("is-hover", "is-selected", "is-manual"));
     const style = document.createElementNS(SVG_NS, "style");
-    style.textContent = `text{font-family:${mapFont()};font-weight:bold}.region{vector-effect:non-scaling-stroke}.country-outline{fill:none;vector-effect:non-scaling-stroke}.region-label{text-anchor:middle}.region-label,.city-label{paint-order:stroke;stroke-linejoin:round}.city-marker__ring{fill:none;stroke-width:1;opacity:.3}.city-marker{filter:url(#marker-shadow)}.city-leader{stroke-linecap:round}`;
+    style.textContent = `text{font-family:${mapFont()};font-weight:bold}.region{vector-effect:non-scaling-stroke}.country-outline{fill:none;vector-effect:non-scaling-stroke}.graticule{fill:none;vector-effect:non-scaling-stroke}.compass text{text-anchor:middle;paint-order:stroke;stroke-linejoin:round}.region-label{text-anchor:middle}.region-label,.city-label{paint-order:stroke;stroke-linejoin:round}.city-marker__ring{fill:none;stroke-width:1;opacity:.3}.city-marker{filter:url(#marker-shadow)}.city-leader{stroke-linecap:round}`;
     clone.insertBefore(style, clone.firstChild);
     return { xml: new XMLSerializer().serializeToString(clone), width: bounds.width, height: bounds.height, bounds };
   }
@@ -2156,12 +2271,12 @@
     const glow = state.labelHalo
       ? { size: Math.round(clamp(state.labelHaloWidth * unit * 72 * 2, .5, 12) * 10) / 10, opacity: 1, color: state.labelHaloColor.slice(1).toUpperCase() }
       : null;
-    const place = (text, px, py, anchor, fontPx, color) => {
+    const place = (text, px, py, anchor, fontPx, color, tracking = 0) => {
       const baseX = x + (px - bounds.x) * unit;
       const baseY = y + (py - bounds.y) * unit;
       if (baseX < x - .3 || baseX > x + w + .3 || baseY < y - .3 || baseY > y + h + .3) return;
       const fontSize = clamp(fontPx * unit * 72, 5, 48);
-      const textW = textWidth(text, fontPx) * unit + fontSize / 72 * .3;
+      const textW = (textWidth(text, fontPx) + fontPx * tracking * text.length) * unit + fontSize / 72 * .3;
       const textH = Math.max(.14, fontSize * 1.3 / 72);
       let textX = anchor === "end" ? baseX - textW : anchor === "middle" ? baseX - textW / 2 : baseX;
       textX = clamp(textX, 0, Math.max(0, slideW - textW));
@@ -2173,6 +2288,7 @@
         align: anchor === "end" ? "right" : anchor === "middle" ? "center" : "left",
         valign: "mid", breakLine: false, isTextBox: true
       };
+      if (tracking) options.charSpacing = Math.round(fontSize * tracking * 10) / 10;
       if (glow) options.glow = glow;
       slide.addText(text, options);
     };
@@ -2180,7 +2296,7 @@
       const color = darken(state.fillStart, .7);
       features.forEach(d => {
         if (!shownRegionLabels.has(d.properties.id)) return;
-        place(shortRegionName(d.properties.name), d.centroid[0], d.centroid[1], "middle", state.regionFontSize, color);
+        place(regionLabelText(d), d.centroid[0], d.centroid[1], "middle", state.regionFontSize, color, state.regionLabelsCaps ? CAPS_TRACKING : 0);
       });
     }
     if (state.cityLabels) {

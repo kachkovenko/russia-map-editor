@@ -130,14 +130,15 @@
               <g id="export-content">
                 <g id="regions-layer"></g>
                 <path id="country-outline" class="country-outline"></path>
+                <path id="graticule" class="graticule" display="none"></path>
                 <g id="region-labels"></g>
                 <g id="cities-layer"></g>
+                <g id="compass" class="compass" display="none"></g>
               </g>
               <g id="active-outline" class="active-outline"></g>
               <g id="map-selection" class="map-selection" display="none">
                 <rect class="map-selection__box"></rect>
                 <line class="map-selection__stem"></line>
-                <g class="map-selection__handle map-selection__rotate" data-handle="rotate"><title>Поворот карты</title><circle r="8"></circle><path d="M-3.6,-1.2A4,4 0 1 1 -1.6,3.4M-3.6,-4.2v3h3" fill="none"></path></g>
                 <g class="map-selection__handle map-selection__corner" data-handle="nw"><rect x="-4.5" y="-4.5" width="9" height="9"></rect></g>
                 <g class="map-selection__handle map-selection__corner" data-handle="ne"><rect x="-4.5" y="-4.5" width="9" height="9"></rect></g>
                 <g class="map-selection__handle map-selection__corner" data-handle="se"><rect x="-4.5" y="-4.5" width="9" height="9"></rect></g>
@@ -155,15 +156,19 @@
           </div>
         </div>
 
+        <div class="status-bar" id="status-bar" aria-live="off">
+          <output id="zoom-level" aria-label="Текущий масштаб">100%</output>
+          <span class="status-bar__sep" aria-hidden="true"></span>
+          <span id="cursor-geo" aria-label="Координаты под курсором">—</span>
+        </div>
         <div class="map-controls">
           <button id="zoom-out" aria-label="Уменьшить">−</button>
-          <output id="zoom-level" aria-label="Текущий масштаб">100%</output>
           <button id="zoom-in" aria-label="Увеличить">+</button>
           <button id="fit-map">Вписать</button>
         </div>
         <div class="selection-bar" id="selection-bar" hidden>
           <span class="selection-bar__count" id="selection-bar-count">1 регион</span>
-          <label class="mini-color" title="Заливка выбранных регионов"><input id="active-color" type="color" value="#ff5f46"><input class="hex-input" data-color-text-for="active-color" value="#FF5F46" maxlength="7" aria-label="HEX-код заливки выбранных регионов" spellcheck="false"></label>
+          <label class="swatch" title="Заливка выбранных регионов"><input id="active-color" type="color" value="#ff5f46"><input class="hex-input" data-color-text-for="active-color" value="#FF5F46" maxlength="7" aria-label="HEX-код заливки выбранных регионов" spellcheck="false"></label>
           <button type="button" id="active-unmark">Снять отметку</button>
           <button type="button" id="active-clear" aria-label="Снять выделение" title="Снять выделение (Esc)">✕</button>
         </div>
@@ -186,14 +191,14 @@
                 <span>Градиент</span>
                 <input class="switch" id="gradient-enabled" type="checkbox" checked>
               </label>
-              <div class="color-grid" id="fill-color-grid">
-                <label class="color-control"><span id="fill-start-label">Начало</span><span><input id="fill-start" type="color" value="#6d5dfc"><input class="hex-input" data-color-text-for="fill-start" value="#6D5DFC" maxlength="7" aria-label="HEX-код первого цвета" spellcheck="false"></span></label>
-                <label class="color-control" id="fill-end-control"><span>Конец</span><span><input id="fill-end" type="color" value="#29c7ac"><input class="hex-input" data-color-text-for="fill-end" value="#29C7AC" maxlength="7" aria-label="HEX-код второго цвета" spellcheck="false"></span></label>
+              <div id="fill-color-grid">
+                <label class="color-row"><span id="fill-start-label">Начало</span><span class="swatch"><input id="fill-start" type="color" value="#6d5dfc"><input class="hex-input" data-color-text-for="fill-start" value="#6D5DFC" maxlength="7" aria-label="HEX-код первого цвета" spellcheck="false"></span></label>
+                <label class="color-row" id="fill-end-control"><span>Конец</span><span class="swatch"><input id="fill-end" type="color" value="#29c7ac"><input class="hex-input" data-color-text-for="fill-end" value="#29C7AC" maxlength="7" aria-label="HEX-код второго цвета" spellcheck="false"></span></label>
               </div>
               <div id="gradient-options">
                 <label class="range-row">
                   <span>Направление <output id="gradient-angle-value">25°</output></span>
-                  <input id="gradient-angle" type="range" min="0" max="360" value="25">
+                  <span class="range-track" style="--ticks: 8"><input id="gradient-angle" type="range" min="0" max="360" value="25"></span>
                 </label>
                 <div class="gradient-stops">
                   <span>Положение цветов <output id="gradient-stops-value">0% — 100%</output></span>
@@ -206,9 +211,9 @@
               </div>
               <label class="range-row">
                 <span>Прозрачность <output id="opacity-value">100%</output></span>
-                <input id="fill-opacity" type="range" min="10" max="100" value="100">
+                <span class="range-track" style="--ticks: 9"><input id="fill-opacity" type="range" min="10" max="100" value="100"></span>
               </label>
-              <label class="color-control color-control--wide"><span>Выделение</span><span><input id="selected-color" type="color" value="#ff5f46"><input class="hex-input" data-color-text-for="selected-color" value="#FF5F46" maxlength="7" aria-label="HEX-код цвета выделения" spellcheck="false"></span></label>
+              <label class="color-row"><span>Выделение</span><span class="swatch"><input id="selected-color" type="color" value="#ff5f46"><input class="hex-input" data-color-text-for="selected-color" value="#FF5F46" maxlength="7" aria-label="HEX-код цвета выделения" spellcheck="false"></span></label>
               <div class="palette" aria-label="Готовые палитры">
                 <button data-palette="#6D5DFC,#29C7AC" style="--a:#6D5DFC;--b:#29C7AC" aria-label="Фиолетовый и мятный"></button>
                 <button data-palette="#F97316,#FACC15" style="--a:#F97316;--b:#FACC15" aria-label="Оранжевый и жёлтый"></button>
@@ -225,9 +230,9 @@
           <div class="section-body" id="section-labels">
             <div class="section-body__inner">
               <label class="switch-row"><span>Границы регионов</span><input class="switch" id="borders-enabled" type="checkbox" checked></label>
-              <div class="inline-controls" id="border-controls">
-                <label class="mini-color"><input id="border-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="border-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код границ" spellcheck="false"></label>
-                <label class="number-control"><input id="border-width" type="number" min="0.2" max="4" step="0.2" value="0.8"><span>px</span></label>
+              <div class="sub-options" id="border-controls">
+                <label class="color-row"><span>Цвет границ</span><span class="swatch"><input id="border-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="border-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код границ" spellcheck="false"></span></label>
+                <label class="field-row"><span>Толщина</span><span class="number-control"><input id="border-width" type="number" min="0.2" max="4" step="0.2" value="0.8"><span>px</span></span></label>
               </div>
               <label class="select-row"><span>Шрифт подписей</span>
                 <select id="label-font">
@@ -251,33 +256,32 @@
                   <button class="is-active" data-labels-mode="all">Все, что помещаются</button>
                   <button data-labels-mode="selected">Только выбранные</button>
                 </div>
-                <label class="range-row"><span>Размер названий <output id="region-font-size-value">11 px</output></span><input id="region-font-size" type="range" min="8" max="28" value="11"></label>
+                <label class="switch-row"><span>Разреженные капители</span><input class="switch" id="region-labels-caps" type="checkbox"></label>
+                <label class="range-row"><span>Размер названий <output id="region-font-size-value">11 px</output></span><span class="range-track" style="--ticks: 20"><input id="region-font-size" type="range" min="8" max="28" value="11"></span></label>
               </div>
               <label class="switch-row"><span>Подписи городов</span><input class="switch" id="city-labels-enabled" type="checkbox" checked></label>
               <div class="sub-options" id="city-label-options">
-                <label class="range-row"><span>Размер подписей <output id="city-font-size-value">12 px</output></span><input id="city-font-size" type="range" min="8" max="28" value="12"></label>
+                <label class="range-row"><span>Размер подписей <output id="city-font-size-value">12 px</output></span><span class="range-track" style="--ticks: 20"><input id="city-font-size" type="range" min="8" max="28" value="12"></span></label>
                 <label class="switch-row"><span>Линии выноски</span><input class="switch" id="leader-lines" type="checkbox" checked></label>
-                <label class="color-control color-control--wide" id="leader-color-control"><span>Цвет выноски</span><span><input id="leader-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="leader-color" value="#171717" maxlength="7" aria-label="HEX-код линии выноски" spellcheck="false"></span></label>
+                <label class="color-row" id="leader-color-control"><span>Цвет выноски</span><span class="swatch"><input id="leader-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="leader-color" value="#171717" maxlength="7" aria-label="HEX-код линии выноски" spellcheck="false"></span></label>
               </div>
               <label class="switch-row"><span>Контур текста</span><input class="switch" id="label-halo" type="checkbox" checked></label>
               <div class="sub-options" id="halo-options">
-                <label class="range-row"><span>Толщина контура <output id="label-halo-width-value">1,5 px</output></span><input id="label-halo-width" type="range" min="0.5" max="4" step="0.5" value="1.5"></label>
-                <label class="color-control color-control--wide"><span>Цвет контура</span><span><input id="label-halo-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="label-halo-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код контура текста" spellcheck="false"></span></label>
+                <label class="range-row"><span>Толщина контура <output id="label-halo-width-value">1,5 px</output></span><span class="range-track" style="--ticks: 7"><input id="label-halo-width" type="range" min="0.5" max="4" step="0.5" value="1.5"></span></label>
+                <label class="color-row"><span>Цвет контура</span><span class="swatch"><input id="label-halo-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="label-halo-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код контура текста" spellcheck="false"></span></label>
               </div>
-              <label class="color-control color-control--wide"><span>Маркеры городов</span><span><input id="marker-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="marker-color" value="#171717" maxlength="7" aria-label="HEX-код маркеров" spellcheck="false"></span></label>
+              <label class="color-row"><span>Маркеры городов</span><span class="swatch"><input id="marker-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="marker-color" value="#171717" maxlength="7" aria-label="HEX-код маркеров" spellcheck="false"></span></label>
               <div class="shape-row">
                 <span>Форма маркера</span>
                 <div class="shape-picker" role="group" aria-label="Форма маркера">
                   <button type="button" class="is-active" data-marker-shape="circle" title="Круг" aria-label="Круг"><svg viewBox="-8 -8 16 16" aria-hidden="true"><circle r="5"></circle></svg></button>
                   <button type="button" data-marker-shape="square" title="Квадрат" aria-label="Квадрат"><svg viewBox="-8 -8 16 16" aria-hidden="true"><rect x="-4.5" y="-4.5" width="9" height="9"></rect></svg></button>
-                  <button type="button" data-marker-shape="diamond" title="Ромб" aria-label="Ромб"><svg viewBox="-8 -8 16 16" aria-hidden="true"><path d="M0,-6L6,0L0,6L-6,0Z"></path></svg></button>
-                  <button type="button" data-marker-shape="pin" title="Пин" aria-label="Пин"><svg viewBox="-8 -10 16 16" aria-hidden="true"><path d="M0,4L-3.2,0A4,4 0 1 1 3.2,0Z"></path><circle cy="-2.4" r="1.4" fill="#fff"></circle></svg></button>
                 </div>
               </div>
-              <label class="range-row"><span>Размер маркера <output id="marker-size-value">6</output></span><input id="marker-size" type="range" min="3" max="12" value="6"></label>
+              <label class="range-row"><span>Размер маркера <output id="marker-size-value">6</output></span><span class="range-track" style="--ticks: 9"><input id="marker-size" type="range" min="3" max="12" value="6"></span></label>
               <label class="switch-row"><span>Контур маркера</span><input class="switch" id="marker-outline" type="checkbox" checked></label>
               <div class="sub-options" id="marker-outline-options">
-                <label class="color-control color-control--wide"><span>Цвет контура</span><span><input id="marker-outline-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="marker-outline-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код контура маркера" spellcheck="false"></span></label>
+                <label class="color-row"><span>Цвет контура</span><span class="swatch"><input id="marker-outline-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="marker-outline-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код контура маркера" spellcheck="false"></span></label>
               </div>
             </div>
           </div>
@@ -293,8 +297,17 @@
                 <button data-projection="globe" title="Широкоугольное искажение: центр крупнее, края компактнее"><i class="projection-icon projection-icon--globe"></i><span>Линза</span></button>
               </div>
               <p class="microcopy projection-help" id="projection-help">Равновеликая проекция: площади регионов сравниваются корректнее.</p>
-              <label class="range-row"><span>Поворот <output id="rotation-value">0°</output></span><input id="rotation" type="range" min="-45" max="45" value="0"></label>
-              <label class="range-row globe-only" hidden><span>Сила линзы <output id="lens-strength-value">55%</output></span><input id="lens-strength" type="range" min="0" max="100" value="55"></label>
+              <label class="range-row"><span>Поворот <output id="rotation-value">0°</output></span><span class="range-track" style="--ticks: 6"><input id="rotation" type="range" min="-45" max="45" value="0"></span></label>
+              <label class="range-row globe-only" hidden><span>Сила линзы <output id="lens-strength-value">55%</output></span><span class="range-track" style="--ticks: 4"><input id="lens-strength" type="range" min="0" max="100" value="55"></span></label>
+              <label class="switch-row"><span>Градусная сетка</span><input class="switch" id="graticule-enabled" type="checkbox"></label>
+              <div class="sub-options" id="graticule-options" hidden>
+                <div class="segmented segmented--sub" id="graticule-step">
+                  <button class="is-active" data-graticule-step="10">Шаг 10°</button>
+                  <button data-graticule-step="5">Шаг 5°</button>
+                </div>
+                <label class="color-row"><span>Цвет линий</span><span class="swatch"><input id="graticule-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="graticule-color" value="#171717" maxlength="7" aria-label="HEX-код линий градусной сетки" spellcheck="false"></span></label>
+              </div>
+              <label class="switch-row"><span>Стрелка севера</span><input class="switch" id="compass-enabled" type="checkbox"></label>
             </div>
           </div>
         </section>
@@ -308,7 +321,7 @@
                 <button class="is-active" data-ratio="16:9">16:9</button>
                 <button data-ratio="4:3">4:3</button>
               </div>
-              <label class="color-control color-control--wide"><span>Цвет слайда</span><span><input id="background-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="background-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код цвета слайда" spellcheck="false"></span></label>
+              <label class="color-row"><span>Цвет слайда</span><span class="swatch"><input id="background-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="background-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код цвета слайда" spellcheck="false"></span></label>
               <label class="switch-row"><span>Прозрачный фон при экспорте</span><input class="switch" id="transparent-background" type="checkbox"></label>
               <p class="microcopy" id="crop-note">Экспортируется весь слайд выбранного формата.</p>
             </div>
