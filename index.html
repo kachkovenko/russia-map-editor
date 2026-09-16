@@ -139,6 +139,7 @@
               <g id="map-selection" class="map-selection" display="none">
                 <rect class="map-selection__box"></rect>
                 <line class="map-selection__stem"></line>
+                <g class="map-selection__handle map-selection__rotate" data-handle="rotate"><title>Поворот карты</title><circle r="8"></circle><path d="M-3.6,-1.2A4,4 0 1 1 -1.6,3.4M-3.6,-4.2v3h3" fill="none"></path></g>
                 <g class="map-selection__handle map-selection__corner" data-handle="nw"><rect x="-4.5" y="-4.5" width="9" height="9"></rect></g>
                 <g class="map-selection__handle map-selection__corner" data-handle="ne"><rect x="-4.5" y="-4.5" width="9" height="9"></rect></g>
                 <g class="map-selection__handle map-selection__corner" data-handle="se"><rect x="-4.5" y="-4.5" width="9" height="9"></rect></g>
@@ -276,6 +277,8 @@
                 <div class="shape-picker" role="group" aria-label="Форма маркера">
                   <button type="button" class="is-active" data-marker-shape="circle" title="Круг" aria-label="Круг"><svg viewBox="-8 -8 16 16" aria-hidden="true"><circle r="5"></circle></svg></button>
                   <button type="button" data-marker-shape="square" title="Квадрат" aria-label="Квадрат"><svg viewBox="-8 -8 16 16" aria-hidden="true"><rect x="-4.5" y="-4.5" width="9" height="9"></rect></svg></button>
+                  <button type="button" data-marker-shape="diamond" title="Ромб" aria-label="Ромб"><svg viewBox="-8 -8 16 16" aria-hidden="true"><path d="M0,-6L6,0L0,6L-6,0Z"></path></svg></button>
+                  <button type="button" data-marker-shape="pin" title="Пин" aria-label="Пин"><svg viewBox="-8 -10 16 16" aria-hidden="true"><path d="M0,4L-3.2,0A4,4 0 1 1 3.2,0Z"></path><circle cy="-2.4" r="1.4" fill="#fff"></circle></svg></button>
                 </div>
               </div>
               <label class="range-row"><span>Размер маркера <output id="marker-size-value">6</output></span><span class="range-track" style="--ticks: 9"><input id="marker-size" type="range" min="3" max="12" value="6"></span></label>
