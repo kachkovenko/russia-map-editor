@@ -1222,8 +1222,23 @@
     const exportPopover = document.getElementById("export-popover");
     exportMain.addEventListener("click", event => {
       event.stopPropagation();
-      exportPopover.hidden = !exportPopover.hidden;
-      exportMain.setAttribute("aria-expanded", String(!exportPopover.hidden));
+      const open = exportPopover.hidden;
+      closeExportMenu();
+      exportPopover.hidden = !open;
+      exportMain.setAttribute("aria-expanded", String(open));
+    });
+    const importButton = document.getElementById("import-project");
+    const importPopover = document.getElementById("import-popover");
+    importButton.addEventListener("click", event => {
+      event.stopPropagation();
+      const open = importPopover.hidden;
+      closeExportMenu();
+      importPopover.hidden = !open;
+      importButton.setAttribute("aria-expanded", String(open));
+    });
+    document.getElementById("import-choose").addEventListener("click", () => {
+      closeExportMenu();
+      document.getElementById("project-file-input").click();
     });
     exportPopover.addEventListener("click", event => {
       const button = event.target.closest("[data-export]");
@@ -1236,7 +1251,6 @@
         downloadProject();
       }
     });
-    document.getElementById("import-project").addEventListener("click", () => document.getElementById("project-file-input").click());
     document.getElementById("project-file-input").addEventListener("change", importProjectFile);
     document.addEventListener("click", event => { if (!event.target.closest(".export-menu")) closeExportMenu(); });
 
@@ -2143,9 +2157,12 @@
   }
 
   function closePanels() { document.querySelectorAll(".panel-column").forEach(panel => panel.classList.remove("is-open")); }
+  // Closes both header popovers (export and import).
   function closeExportMenu() {
     document.getElementById("export-popover").hidden = true;
     document.getElementById("export-main").setAttribute("aria-expanded", "false");
+    document.getElementById("import-popover").hidden = true;
+    document.getElementById("import-project").setAttribute("aria-expanded", "false");
   }
   function exportStem() {
     const now = new Date();
