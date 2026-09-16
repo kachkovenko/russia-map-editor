@@ -220,10 +220,12 @@ kbd { padding: 1px 4px; color: var(--faint); border: 1px solid var(--line); bord
 .map-controls button { display: grid; place-items: center; height: 28px; min-width: 28px; padding: 0 10px; border: 0; border-right: 1px solid var(--line-soft); background: transparent; font-size: 12px; cursor: pointer; }
 .map-controls > :last-child { border-right: 0; }
 .map-controls button:hover { background: var(--hover); }
-/* Status strip like a GIS editor's: board zoom and the geographic coordinate under the cursor (screen only). */
-.status-bar { position: absolute; z-index: 5; left: 14px; bottom: 10px; display: flex; align-items: center; gap: 9px; height: 28px; padding: 0 9px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--muted); font: 11px var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
-.status-bar output { color: var(--ink); }
-.status-bar__sep { width: 1px; height: 14px; background: var(--line); }
+/* Status strip like a GIS editor's: board zoom and the geographic coordinate under the cursor (screen only). It is a
+   readout, not a control, so it sits flat on the board — no border — and the coordinate part only exists while the
+   cursor is over the map. */
+.status-bar { position: absolute; z-index: 5; left: 14px; bottom: 10px; display: flex; align-items: center; gap: 9px; height: 28px; padding: 0 8px; border-radius: var(--radius); background: var(--canvas); color: var(--muted); font: 11px var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
+.status-bar output { color: var(--text-soft); }
+.status-bar__sep { width: 1px; height: 12px; background: var(--line); }
 /* Regions picked on the map: screen-only outline above the map, plus a floating bar to recolour or unmark them. */
 .active-outline { pointer-events: none; }
 .active-outline path { fill: none; vector-effect: non-scaling-stroke; stroke-linejoin: round; }

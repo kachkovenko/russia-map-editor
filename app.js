@@ -676,7 +676,7 @@
     cancelAnimationFrame(cursorGeoFrame);
     cursorGeoFrame = requestAnimationFrame(() => {
       const el = document.getElementById("cursor-geo");
-      let text = "—";
+      let text = "";
       if (clientX != null && projection && projection.invert) {
         const point = slidePoint(clientX, clientY);
         const geo = projection.invert(point);
@@ -684,6 +684,8 @@
         if (back && Math.hypot(back[0] - point[0], back[1] - point[1]) < 1) text = formatGeo(geo);
       }
       el.textContent = text;
+      el.hidden = !text;
+      document.getElementById("cursor-geo-sep").hidden = !text;
     });
   }
 
