@@ -678,9 +678,6 @@
     document.getElementById("crop-note").textContent = state.frame
       ? "Экспортируется весь слайд выбранного формата."
       : "Экспорт автоматически кадрируется по карте и меткам.";
-    document.getElementById("stage-hint").textContent = state.frame
-      ? "Клик — регион, Shift — несколько · клик рядом с картой — вся карта: углы меняют размер, ручка сверху поворачивает · колесо — масштаб"
-      : "Клик — регион, Shift — несколько · клик рядом с картой — вся карта, ручка сверху поворачивает · колесо — масштаб доски";
   }
 
   function regionMatches(feature, query) {
@@ -1236,10 +1233,10 @@
         exportFile(button.dataset.export);
       } else if (projectButton) {
         closeExportMenu();
-        if (projectButton.dataset.projectAction === "save") downloadProject();
-        else document.getElementById("project-file-input").click();
+        downloadProject();
       }
     });
+    document.getElementById("import-project").addEventListener("click", () => document.getElementById("project-file-input").click());
     document.getElementById("project-file-input").addEventListener("change", importProjectFile);
     document.addEventListener("click", event => { if (!event.target.closest(".export-menu")) closeExportMenu(); });
 
