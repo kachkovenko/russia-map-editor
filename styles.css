@@ -180,7 +180,9 @@ kbd { padding: 1px 4px; color: var(--faint); border: 1px solid var(--line); bord
 .view-switch button { padding: 5px 11px; border: 0; border-radius: 3px; color: var(--muted); background: transparent; font-size: 11.5px; cursor: pointer; }
 .view-switch button:hover { color: var(--ink); }
 .view-switch button.is-active { color: var(--ink); background: var(--field); font-weight: 600; box-shadow: inset 0 0 0 1px var(--line); }
-.canvas-viewport { position: absolute; inset: 52px 34px 40px; overflow: hidden; cursor: grab; touch-action: none; }
+/* The viewport only positions the board; clipping is left to the stage, so the faded overflow of a zoomed map stays
+   visible right up to the panels on every side. */
+.canvas-viewport { position: absolute; inset: 52px 34px 40px; cursor: grab; touch-action: none; }
 .canvas-viewport.is-panning { cursor: grabbing; }
 .canvas-viewport.is-panning .region, .canvas-viewport.is-panning .city-marker { cursor: grabbing; }
 /* The slide is a sheet on the board: a hairline edge, no shadow. */
