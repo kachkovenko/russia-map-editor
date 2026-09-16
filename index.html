@@ -128,6 +128,7 @@
               </defs>
               <rect class="export-background" id="export-background"></rect>
               <g id="export-content">
+                <g id="dots-layer" display="none"><path class="dots dots--field"></path></g>
                 <g id="regions-layer"></g>
                 <path id="country-outline" class="country-outline"></path>
                 <path id="graticule" class="graticule" display="none"></path>
@@ -183,6 +184,48 @@
           <h2>Настройки карты</h2>
           <button class="icon-button close-mobile" data-close-panel aria-label="Закрыть">×</button>
         </div>
+
+        <section class="control-section" data-section="style">
+          <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-style"><span>Стиль</span><span class="section-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
+          <div class="section-body" id="section-style">
+            <div class="section-body__inner">
+              <div class="projection-grid style-grid" role="group" aria-label="Стиль карты">
+                <button class="is-active" data-map-style="atlas" title="Сплошная заливка регионов"><i class="projection-icon style-icon--atlas"></i><span>Атлас</span></button>
+                <button data-map-style="mosaic" title="Регионы набраны сеткой точек"><i class="projection-icon style-icon--mosaic"></i><span>Мозаика</span></button>
+              </div>
+              <p class="microcopy projection-help" id="style-help">Сплошная заливка регионов, границы и контур страны.</p>
+              <div class="sub-options" id="mosaic-options" hidden>
+                <label class="range-row"><span>Шаг сетки <output id="dot-pitch-value">12 px</output></span><span class="range-track" style="--ticks: 26"><input id="dot-pitch" type="range" min="6" max="32" value="12"></span></label>
+                <label class="range-row"><span>Размер точки <output id="dot-size-value">60%</output></span><span class="range-track" style="--ticks: 14"><input id="dot-size" type="range" min="30" max="100" step="5" value="60"></span></label>
+                <div class="shape-row">
+                  <span>Форма точки</span>
+                  <div class="shape-picker" role="group" aria-label="Форма точки">
+                    <button type="button" class="is-active" data-dot-shape="circle" title="Круг" aria-label="Круг"><svg viewBox="-8 -8 16 16" aria-hidden="true"><circle r="5"></circle></svg></button>
+                    <button type="button" data-dot-shape="square" title="Квадрат" aria-label="Квадрат"><svg viewBox="-8 -8 16 16" aria-hidden="true"><rect x="-4.5" y="-4.5" width="9" height="9"></rect></svg></button>
+                    <button type="button" data-dot-shape="rounded" title="Скруглённый квадрат" aria-label="Скруглённый квадрат"><svg viewBox="-8 -8 16 16" aria-hidden="true"><rect x="-4.5" y="-4.5" width="9" height="9" rx="2.6"></rect></svg></button>
+                  </div>
+                </div>
+                <div class="shape-row">
+                  <span>Раскладка</span>
+                  <div class="segmented segmented--inline" role="group" aria-label="Раскладка точек">
+                    <button type="button" class="is-active" data-dot-layout="grid">Ряды</button>
+                    <button type="button" data-dot-layout="stagger">Шахматная</button>
+                  </div>
+                </div>
+                <label class="switch-row"><span>Точки вокруг страны</span><input class="switch" id="dot-field" type="checkbox"></label>
+                <div class="sub-options" id="dot-field-options" hidden>
+                  <label class="color-row"><span>Цвет поля</span><span class="swatch"><input id="dot-field-color" type="color" value="#d6d3cb"><input class="hex-input" data-color-text-for="dot-field-color" value="#D6D3CB" maxlength="7" aria-label="HEX-код точек вокруг страны" spellcheck="false"></span></label>
+                </div>
+              </div>
+              <div class="preset-row" role="group" aria-label="Готовые стили (скоро)">
+                <button type="button" disabled><i style="--a:#3b5f8a;--b:#b9cad8"></i><span>Чернила</span></button>
+                <button type="button" disabled><i style="--a:#8a7d62;--b:#e6dcc4"></i><span>Пергамент</span></button>
+                <button type="button" disabled><i style="--a:#15171b;--b:#566171"></i><span>Ночь</span></button>
+              </div>
+              <p class="microcopy">Готовые стили — скоро: заливка, границы, подписи и фон одной кнопкой.</p>
+            </div>
+          </div>
+        </section>
 
         <section class="control-section" data-section="fill">
           <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-fill"><span>Заливка</span><span class="section-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>

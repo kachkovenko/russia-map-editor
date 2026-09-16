@@ -20,6 +20,12 @@
     "Республика": "Респ.", "Край": "Край", "Область": "Обл.",
     "Город федерального значения": "ГФЗ", "Автономная область": "АО", "Автономный округ": "АО"
   };
+  const STYLE_HELP = Object.freeze({
+    atlas: "Сплошная заливка регионов, границы и контур страны.",
+    mosaic: "Регионы набраны сеткой точек, как на инфографике; точки едут и поворачиваются вместе с картой. Линза недоступна."
+  });
+  // Region lookup for the mosaic is rasterised; sides above this many pixels are scaled down.
+  const MAX_SAMPLE_SIDE = 4096;
   const PROJECTION_HELP = Object.freeze({
     conic: "Равновеликая проекция: площади регионов сравниваются корректнее.",
     mercator: "Привычный вид веб-карт. Северные территории визуально увеличены.",
@@ -40,7 +46,8 @@
   });
 
   const defaults = {
-    tab: "regions", gradient: true, fillStart: "#3b5f8a", fillEnd: "#b9cad8",
+    tab: "regions", mapStyle: "atlas", dotPitch: 12, dotSize: 60, dotShape: "circle", dotLayout: "grid", dotField: false, dotFieldColor: "#d6d3cb", mosaicBorders: false,
+    gradient: true, fillStart: "#3b5f8a", fillEnd: "#b9cad8",
     angle: 25, gradientStart: 0, gradientEnd: 100, opacity: 1, selectedColor: "#ff5f46", borders: true, borderColor: "#ffffff",
     borderWidth: 0.8, regionLabels: false, regionLabelsMode: "all", regionLabelsCaps: false, regionFontSize: 11, cityLabels: true, cityFontSize: 12,
     labelFont: "inter", leaderLines: true, leaderColor: "#171717", labelHalo: true, labelHaloWidth: 1.5, labelHaloColor: "#ffffff",
@@ -49,6 +56,7 @@
     background: "#ffffff", transparent: false, zoom: 1, mapX: 0, mapY: 0, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, lensLon: 91.06, lensLat: 65.36, projectCompanion: true, fontCompanion: true
   };
   const PROJECT_SETTING_KEYS = Object.freeze([
+    "mapStyle", "dotPitch", "dotSize", "dotShape", "dotLayout", "dotField", "dotFieldColor", "mosaicBorders",
     "gradient", "fillStart", "fillEnd", "angle", "gradientStart", "gradientEnd", "opacity", "selectedColor", "borders",
     "borderColor", "borderWidth", "regionLabels", "regionLabelsMode", "regionLabelsCaps", "regionFontSize", "cityLabels", "cityFontSize",
     "labelFont", "leaderLines", "leaderColor", "labelHalo", "labelHaloWidth", "labelHaloColor", "markerColor", "markerShape", "markerSize",
@@ -58,15 +66,17 @@
     "projectCompanion", "fontCompanion"
   ]);
   const VIEW_KEYS = Object.freeze(["viewZoom", "panX", "panY"]);
-  const BOOLEAN_SETTINGS = new Set(["gradient", "borders", "regionLabels", "regionLabelsCaps", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "graticule", "compass", "frame", "transparent", "projectCompanion", "fontCompanion"]);
-  const COLOR_SETTINGS = new Set(["fillStart", "fillEnd", "selectedColor", "borderColor", "leaderColor", "labelHaloColor", "markerColor", "markerOutlineColor", "graticuleColor", "background"]);
+  const BOOLEAN_SETTINGS = new Set(["dotField", "mosaicBorders", "gradient", "borders", "regionLabels", "regionLabelsCaps", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "graticule", "compass", "frame", "transparent", "projectCompanion", "fontCompanion"]);
+  const COLOR_SETTINGS = new Set(["dotFieldColor", "fillStart", "fillEnd", "selectedColor", "borderColor", "leaderColor", "labelHaloColor", "markerColor", "markerOutlineColor", "graticuleColor", "background"]);
   const NUMBER_RANGES = Object.freeze({
+    dotPitch: [6, 32], dotSize: [30, 100],
     angle: [0, 360], gradientStart: [0, 100], gradientEnd: [0, 100], opacity: [.1, 1], borderWidth: [.2, 4], markerSize: [3, 12],
     regionFontSize: [8, 28], cityFontSize: [8, 28], labelHaloWidth: [.5, 4],
     rotation: [-45, 45], zoom: [.3, 4], mapX: [-4000, 4000], mapY: [-4000, 4000], viewZoom: [.25, 4], panX: [-10000, 10000], panY: [-10000, 10000],
     lensStrength: [0, 100], lensLon: [-180, 180], lensLat: [-85, 85]
   });
   const ENUM_SETTINGS = Object.freeze({
+    mapStyle: ["atlas", "mosaic"], dotShape: ["circle", "square", "rounded"], dotLayout: ["grid", "stagger"],
     projection: ["conic", "mercator", "globe"], ratio: ["16:9", "4:3"], tab: ["regions", "cities", "selected"], regionLabelsMode: ["all", "selected"],
     markerShape: ["circle", "square", "diamond", "pin"], labelFont: Object.keys(LABEL_FONTS), graticuleStep: [10, 5]
   });
@@ -104,6 +114,7 @@
   let projection = null;
   let path = null;
   let regionPaths = null;
+  let regionD = [];
   let cityGroups = null;
   let labelGroups = null;
   let toastTimer = null;
@@ -128,6 +139,10 @@
   const measureCache = new Map();
   let shownRegionLabels = new Set();
   let graticuleKey = null;
+  let dotsKey = null;
+  let dotCount = 0;
+  const sampleCanvas = document.createElement("canvas");
+  const sampleContext = sampleCanvas.getContext("2d", { willReadFrequently: true });
   let cursorGeoFrame = null;
   // Candidate directions for a city label in order of preference: right, left, above, below, diagonals, then the in-betweens.
   const LABEL_DIRECTIONS = Object.freeze([0, 180, -90, 90, -45, -135, 45, 135, -22.5, 22.5, -157.5, 157.5, -67.5, 67.5, -112.5, 112.5].map(deg => {
@@ -370,11 +385,13 @@
     makeProjection();
     path = d3.geoPath(projection).digits(1);
     svg.attr("viewBox", `0 0 ${width} ${height}`);
-    regionPaths.attr("d", path);
+    regionD = features.map(d => path(d));
+    regionPaths.attr("d", (d, k) => regionD[k]);
     d3.select("#country-outline").attr("d", path(outline));
 
     labelGeometryFresh = false;
     graticuleKey = null;
+    dotsKey = null;
     cities.forEach(city => {
       const p = projection([city.lon, city.lat]);
       city.point = p && isFinite(p[0]) && isFinite(p[1]) ? p : null;
@@ -400,11 +417,14 @@
       .attr("display", state.frame ? null : "none");
 
     const landFill = state.gradient ? "url(#land-gradient)" : state.fillStart;
+    const mosaic = state.mapStyle === "mosaic";
+    const borders = bordersOn();
+    // In the mosaic the polygons stay as invisible hit areas (and carry the borders); the dots paint the fill.
     regionPaths
       .attr("fill", d => regionFill(d.properties.id, landFill))
-      .attr("fill-opacity", state.opacity)
-      .attr("stroke", state.borders ? state.borderColor : "none")
-      .attr("stroke-width", state.borders ? state.borderWidth : 0)
+      .attr("fill-opacity", mosaic ? 0 : state.opacity)
+      .attr("stroke", borders ? state.borderColor : "none")
+      .attr("stroke-width", borders ? state.borderWidth : 0)
       .classed("is-selected", d => state.selectedRegions.has(d.properties.id));
 
     const activeFeatures = features.filter(f => state.activeRegions.has(f.properties.id));
@@ -418,7 +438,8 @@
     d3.select("#country-outline")
       .attr("stroke", darken(state.fillStart, .45))
       .attr("stroke-width", Math.max(1.1, state.borderWidth * 1.35))
-      .attr("display", state.borders ? null : "none");
+      .attr("display", borders && !mosaic ? null : "none");
+    updateDots(landFill);
 
     const halo = state.labelHalo ? state.labelHaloWidth * 2 : 0;
     const haloStroke = halo ? state.labelHaloColor : "none";
@@ -475,6 +496,144 @@
     document.querySelectorAll("[data-quick-projection]").forEach(el => el.classList.toggle("is-active", (state.projection === "globe" ? "globe" : "conic") === el.dataset.quickProjection));
     document.querySelectorAll(".globe-only").forEach(el => el.hidden = state.projection !== "globe");
     document.getElementById("projection-help").textContent = PROJECTION_HELP[state.projection];
+  }
+
+  // Mosaic style: every region becomes one path of dot subpaths. The dot grid lives in the map object's own frame
+  // (origin at the frame's centre, pitch scaled with the map's zoom, rows turned with the map), so the pattern travels,
+  // grows and turns with the map instead of being resampled against the slide. Colours are plain restyles.
+  function updateDots(landFill) {
+    const layer = d3.select("#dots-layer");
+    if (state.mapStyle !== "mosaic") { layer.attr("display", "none"); return; }
+    const key = [state.dotPitch, state.dotSize, state.dotShape, state.dotLayout, state.dotField].join("|");
+    if (dotsKey !== key) { buildDots(); dotsKey = key; }
+    layer.attr("display", null);
+    layer.selectAll(".dots--region")
+      .attr("fill", d => regionFill(d.properties.id, landFill))
+      .attr("fill-opacity", state.opacity)
+      .classed("is-selected", d => state.selectedRegions.has(d.properties.id));
+    layer.select(".dots--field").attr("fill", state.dotFieldColor).attr("display", state.dotField ? null : "none");
+    document.getElementById("dot-pitch-value").textContent = `${state.dotPitch} px · ≈ ${dotCount.toLocaleString("ru-RU")} ${plural(dotCount, "точка", "точки", "точек")}`;
+  }
+
+  function buildDots() {
+    const f = mapFrame;
+    const [cx, cy] = f.center;
+    const pitch = state.dotPitch * mapPlacement().zoom;
+    const stagger = state.dotLayout === "stagger";
+    const rowStep = stagger ? pitch * Math.sqrt(3) / 2 : pitch;
+    // Sampling window in the map's unturned frame: its box, widened to the slide when the field around it is on.
+    let u0 = f.x - cx, u1 = f.x + f.width - cx, v0 = f.y - cy, v1 = f.y + f.height - cy;
+    if (state.dotField) {
+      const corners = state.frame
+        ? [[0, 0], [width, 0], [width, height], [0, height]]
+        : [[f.x - pitch * 2, f.y - pitch * 2], [f.x + f.width + pitch * 2, f.y - pitch * 2], [f.x + f.width + pitch * 2, f.y + f.height + pitch * 2], [f.x - pitch * 2, f.y + f.height + pitch * 2]];
+      corners.forEach(p => {
+        const [x, y] = turnPoint(p, f.center, -f.angle);
+        u0 = Math.min(u0, x - cx); u1 = Math.max(u1, x - cx); v0 = Math.min(v0, y - cy); v1 = Math.max(v1, y - cy);
+      });
+    }
+    const i0 = Math.floor(u0 / pitch) - 1, i1 = Math.ceil(u1 / pitch) + 1;
+    const j0 = Math.floor(v0 / rowStep) - 1, j1 = Math.ceil(v1 / rowStep) + 1;
+    const turned = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]].map(([u, v]) => turnPoint([cx + u, cy + v], f.center, f.angle));
+    const lookup = rasterizeRegions({
+      x: Math.min(...turned.map(p => p[0])) - pitch, y: Math.min(...turned.map(p => p[1])) - pitch,
+      width: Math.max(...turned.map(p => p[0])) - Math.min(...turned.map(p => p[0])) + pitch * 2,
+      height: Math.max(...turned.map(p => p[1])) - Math.min(...turned.map(p => p[1])) + pitch * 2
+    });
+    const perRegion = features.map(() => []);
+    const field = [];
+    for (let j = j0; j <= j1; j++) {
+      const v = j * rowStep;
+      const shift = stagger && (j & 1) ? pitch / 2 : 0;
+      for (let i = i0; i <= i1; i++) {
+        const u = i * pitch + shift;
+        const s = turnPoint([cx + u, cy + v], f.center, f.angle);
+        const k = lookup(s[0], s[1]);
+        if (k >= 0) perRegion[k].push([u, v]);
+        else if (state.dotField) field.push([u, v]);
+      }
+    }
+    // Every region keeps at least one dot, or a coarse grid would swallow Москва, Севастополь and the small republics.
+    features.forEach((d, k) => {
+      if (perRegion[k].length) return;
+      const c = path.centroid(d);
+      if (!c || !isFinite(c[0]) || !isFinite(c[1])) return;
+      const local = turnPoint(c, f.center, -f.angle);
+      perRegion[k].push([local[0] - cx, local[1] - cy]);
+    });
+    const radius = pitch * state.dotSize / 100 / 2;
+    const layer = d3.select("#dots-layer").attr("transform", `translate(${cx},${cy}) rotate(${f.angle * 180 / Math.PI})`);
+    layer.select(".dots--field").attr("d", dotsPath(field, radius, state.dotShape));
+    layer.selectAll(".dots--region").data(features, d => d.properties.id)
+      .join(enter => enter.append("path").attr("class", "dots dots--region").attr("data-id", d => d.properties.id))
+      .attr("d", (d, k) => dotsPath(perRegion[k], radius, state.dotShape));
+    dotCount = perRegion.reduce((n, list) => n + list.length, 0);
+  }
+
+  // Which region a slide point falls in: regions are painted into a canvas with an index colour (checksummed in the
+  // other channels so anti-aliased boundary pixels are recognised and resolved from a neighbour). Larger regions are
+  // painted first, so enclaves like Москва end up on top.
+  function rasterizeRegions(box) {
+    const scale = Math.min(1, MAX_SAMPLE_SIDE / Math.max(box.width, box.height));
+    const w = Math.max(1, Math.ceil(box.width * scale));
+    const h = Math.max(1, Math.ceil(box.height * scale));
+    sampleCanvas.width = w; sampleCanvas.height = h;
+    const ctx = sampleContext;
+    ctx.setTransform(scale, 0, 0, scale, -box.x * scale, -box.y * scale);
+    ctx.clearRect(box.x, box.y, box.width, box.height);
+    features.map((d, k) => k).sort((a, b) => features[b].area - features[a].area).forEach(k => {
+      ctx.fillStyle = `rgb(${k},${(k * 7 + 3) % 256},${(k * 13 + 5) % 256})`;
+      ctx.fill(new Path2D(regionD[k]));
+    });
+    const data = ctx.getImageData(0, 0, w, h).data;
+    const decode = (x, y) => {
+      if (x < 0 || y < 0 || x >= w || y >= h) return -1;
+      const o = (y * w + x) * 4;
+      if (data[o + 3] !== 255) return -1;
+      const k = data[o];
+      return data[o + 1] === (k * 7 + 3) % 256 && data[o + 2] === (k * 13 + 5) % 256 ? k : -2;
+    };
+    return (sx, sy) => {
+      const x = Math.floor((sx - box.x) * scale), y = Math.floor((sy - box.y) * scale);
+      let k = decode(x, y);
+      if (k !== -2) return k;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        k = decode(x + dx, y + dy);
+        if (k >= 0) return k;
+      }
+      return -1;
+    };
+  }
+
+  function dotsPath(points, r, shape) {
+    const n = v => Math.round(v * 10) / 10;
+    const side = n(r * 2);
+    if (shape === "circle") return points.map(([u, v]) => `M${n(u - r)},${n(v)}a${n(r)},${n(r)} 0 1 0 ${side},0a${n(r)},${n(r)} 0 1 0 -${side},0`).join("");
+    if (shape === "square") return points.map(([u, v]) => `M${n(u - r)},${n(v - r)}h${side}v${side}h-${side}z`).join("");
+    const c = n(r * .4), flat = n(r * 2 - c * 2);
+    return points.map(([u, v]) => `M${n(u - r + c)},${n(v - r)}h${flat}a${c},${c} 0 0 1 ${c},${c}v${flat}a${c},${c} 0 0 1 -${c},${c}h-${flat}a${c},${c} 0 0 1 -${c},-${c}v-${flat}a${c},${c} 0 0 1 ${c},-${c}z`).join("");
+  }
+
+  function hoverDots(id) {
+    d3.select("#dots-layer").selectAll(".is-hover").classed("is-hover", false);
+    if (id) d3.select("#dots-layer").select(`[data-id="${id}"]`).classed("is-hover", true);
+  }
+
+  // Region borders are remembered per style: the mosaic starts without them, the atlas with them.
+  function bordersOn() { return state.mapStyle === "mosaic" ? state.mosaicBorders : state.borders; }
+
+  // The lens distorts the sampling grid unevenly, so the mosaic falls back to the atlas projection.
+  function enforceStyleRules() {
+    if (state.mapStyle !== "mosaic" || state.projection !== "globe") return false;
+    state.projection = "conic";
+    return true;
+  }
+
+  function plural(n, one, few, many) {
+    const mod10 = n % 10, mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return one;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+    return many;
   }
 
   // Meridians and parallels over the map, part of the export. The net is only regenerated when the projection or the
@@ -1191,6 +1350,7 @@
   function setMapHover(kind, id) {
     regionsLayer.selectAll(".is-hover").classed("is-hover", false);
     citiesLayer.selectAll(".is-hover").classed("is-hover", false);
+    hoverDots(kind === "region" ? id : null);
     if (!id) return;
     (kind === "region" ? regionsLayer : citiesLayer).select(`[data-id="${id}"]`).classed("is-hover", true);
   }
@@ -1277,6 +1437,26 @@
     bindMapHandles();
     bindLensFocus();
 
+    document.querySelectorAll("[data-map-style]").forEach(button => button.addEventListener("click", () => {
+      if (state.mapStyle === button.dataset.mapStyle) return;
+      state.mapStyle = button.dataset.mapStyle;
+      const reprojected = enforceStyleRules();
+      updateStyleControls(); updateLabelModeControls();
+      reprojected ? render() : restyle();
+      saveState();
+    }));
+    bindRange("dot-pitch", "dotPitch", "dot-pitch-value", v => `${v} px`, Number);
+    bindRange("dot-size", "dotSize", "dot-size-value", v => `${v}%`, Number);
+    document.querySelectorAll("[data-dot-shape]").forEach(button => button.addEventListener("click", () => {
+      state.dotShape = button.dataset.dotShape;
+      updateStyleControls(); restyle(); saveState();
+    }));
+    document.querySelectorAll("[data-dot-layout]").forEach(button => button.addEventListener("click", () => {
+      state.dotLayout = button.dataset.dotLayout;
+      updateStyleControls(); restyle(); saveState();
+    }));
+    bindCheck("dot-field", "dotField", updateStyleControls);
+    bindColor("dot-field-color", "dotFieldColor");
     bindCheck("gradient-enabled", "gradient", updateGradientControls);
     bindColor("fill-start", "fillStart");
     bindColor("fill-end", "fillEnd");
@@ -1284,7 +1464,10 @@
     bindGradientStops();
     bindRange("fill-opacity", "opacity", "opacity-value", v => `${v}%`, v => Number(v) / 100);
     bindColor("selected-color", "selectedColor");
-    bindCheck("borders-enabled", "borders", updateLabelModeControls);
+    document.getElementById("borders-enabled").addEventListener("change", event => {
+      state[state.mapStyle === "mosaic" ? "mosaicBorders" : "borders"] = event.target.checked;
+      updateLabelModeControls(); restyle(); saveState();
+    });
     bindColor("border-color", "borderColor");
     document.getElementById("border-width").addEventListener("input", event => {
       const value = Number(event.target.value);
@@ -1601,6 +1784,7 @@
   }
 
   function setProjection(value) {
+    if (value === "globe" && state.mapStyle === "mosaic") return;
     state.projection = value;
     render(); saveState();
   }
@@ -1745,13 +1929,29 @@
       : `${font.name} есть на любом компьютере — прикладывать шрифт не нужно`;
   }
 
+  function updateStyleControls() {
+    const mosaic = state.mapStyle === "mosaic";
+    document.querySelectorAll("[data-map-style]").forEach(el => el.classList.toggle("is-active", el.dataset.mapStyle === state.mapStyle));
+    document.getElementById("mosaic-options").hidden = !mosaic;
+    document.getElementById("dot-field-options").hidden = !state.dotField;
+    document.querySelectorAll("[data-dot-shape]").forEach(el => el.classList.toggle("is-active", el.dataset.dotShape === state.dotShape));
+    document.querySelectorAll("[data-dot-layout]").forEach(el => el.classList.toggle("is-active", el.dataset.dotLayout === state.dotLayout));
+    document.getElementById("style-help").textContent = STYLE_HELP[state.mapStyle];
+    document.querySelectorAll('[data-projection="globe"], [data-quick-projection="globe"]').forEach(el => {
+      if (el.dataset.title === undefined) el.dataset.title = el.title;
+      el.disabled = mosaic;
+      el.title = mosaic ? "Линза недоступна в стиле «Мозаика»" : el.dataset.title;
+    });
+  }
+
   function updateProjectionControls() {
     document.getElementById("graticule-options").hidden = !state.graticule;
     document.querySelectorAll("[data-graticule-step]").forEach(el => el.classList.toggle("is-active", Number(el.dataset.graticuleStep) === state.graticuleStep));
   }
 
   function updateLabelModeControls() {
-    document.getElementById("border-controls").hidden = !state.borders;
+    document.getElementById("borders-enabled").checked = bordersOn();
+    document.getElementById("border-controls").hidden = !bordersOn();
     document.getElementById("region-label-options").hidden = !state.regionLabels;
     document.getElementById("city-label-options").hidden = !state.cityLabels;
     document.getElementById("halo-options").hidden = !state.labelHalo;
@@ -1781,10 +1981,11 @@
 
   function syncControls() {
     const pairs = {
+      "dot-pitch": state.dotPitch, "dot-size": state.dotSize, "dot-field": state.dotField, "dot-field-color": state.dotFieldColor,
       "gradient-enabled": state.gradient, "fill-start": state.fillStart, "fill-end": state.fillEnd,
       "gradient-angle": state.angle, "gradient-start-position": state.gradientStart, "gradient-end-position": state.gradientEnd,
       "fill-opacity": Math.round(state.opacity * 100), "selected-color": state.selectedColor,
-      "borders-enabled": state.borders, "border-color": state.borderColor, "border-width": state.borderWidth,
+      "border-color": state.borderColor, "border-width": state.borderWidth,
       "region-labels-enabled": state.regionLabels, "region-labels-caps": state.regionLabelsCaps, "city-labels-enabled": state.cityLabels, "marker-color": state.markerColor,
       "region-font-size": state.regionFontSize, "city-font-size": state.cityFontSize, "leader-lines": state.leaderLines,
       "label-halo": state.labelHalo, "label-halo-width": state.labelHaloWidth, "label-halo-color": state.labelHaloColor,
@@ -1805,6 +2006,7 @@
       textInput.classList.remove("is-invalid");
       textInput.setAttribute("aria-invalid", "false");
     });
+    document.getElementById("dot-size-value").textContent = `${state.dotSize}%`;
     document.getElementById("gradient-angle-value").textContent = `${state.angle}°`;
     document.getElementById("gradient-stops-value").textContent = `${state.gradientStart}% — ${state.gradientEnd}%`;
     document.getElementById("opacity-value").textContent = `${Math.round(state.opacity * 100)}%`;
@@ -1815,6 +2017,7 @@
     document.getElementById("rotation-value").textContent = `${Math.round(state.rotation)}°`;
     document.getElementById("lens-strength-value").textContent = `${Math.round(state.lensStrength)}%`;
     updateFontCompanionOption();
+    updateStyleControls();
     updateGradientControls();
     updateLabelModeControls();
     updateProjectionControls();
@@ -1851,6 +2054,7 @@
       if (!isPlainRecord(saved)) return;
       const settings = sanitizeSettings(saved);
       Object.keys(defaults).forEach(key => state[key] = settings[key]);
+      enforceStyleRules();
       state.selectedRegions = new Set(sanitizeIds(saved.selectedRegions, regionIds, features.length));
       state.selectedCities = new Set(sanitizeIds(saved.selectedCities, cityIds, cities.length));
       state.cityLabelOffsets = sanitizeOffsets(saved.cityLabelOffsets, cityIds);
@@ -2072,6 +2276,7 @@
   function applyDocument(project, { keepView = false } = {}) {
     const view = { viewZoom: state.viewZoom, panX: state.panX, panY: state.panY };
     PROJECT_SETTING_KEYS.forEach(key => state[key] = project.settings[key]);
+    enforceStyleRules();
     if (keepView) Object.assign(state, view);
     state.selectedRegions = new Set(project.regions);
     state.selectedCities = new Set(project.cities);
@@ -2104,6 +2309,8 @@
     clone.querySelector("#active-outline").remove();
     clone.querySelector("#map-selection").remove();
     clone.querySelector("#lens-focus").remove();
+    // Mosaic without borders: the invisible hit polygons only add weight to the file.
+    if (state.mapStyle === "mosaic" && !bordersOn()) clone.querySelector("#regions-layer").remove();
     const bg = clone.querySelector("#export-background");
     bg.removeAttribute("display");
     bg.setAttribute("x", bounds.x); bg.setAttribute("y", bounds.y); bg.setAttribute("width", bounds.width); bg.setAttribute("height", bounds.height);
@@ -2333,6 +2540,7 @@
   function regionHover(event, d) {
     const p = d.properties;
     showTooltip(event, `<b>${escapeHtml(p.name)}</b><small>${escapeHtml(p.capital)} · ${escapeHtml(p.fd)}</small>`);
+    hoverDots(p.id);
     setListHover(p.id);
   }
 
@@ -2342,7 +2550,7 @@
     setListHover(d.id);
   }
   function showTooltip(event, html) { tooltip.innerHTML = html; tooltip.hidden = false; tooltip.style.left = `${event.clientX}px`; tooltip.style.top = `${event.clientY}px`; }
-  function hideTooltip() { tooltip.hidden = true; setListHover(null); }
+  function hideTooltip() { tooltip.hidden = true; hoverDots(null); setListHover(null); }
 
   function showToast(message, persistent) {
     const toast = document.getElementById("toast");
