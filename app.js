@@ -142,7 +142,8 @@
   let dotsKey = null;
   let dotsEmitKey = null;
   let dotCount = 0;
-  // Mosaic dot sets per region in the map frame's local coordinates ([u, v, slideX, slideY]) and the field around.
+  // Mosaic dot sets per region: grid nodes in the map frame's local coordinates ({u, v, x, y, i, j, off}) and the
+  // field around; `off` marks a node handed over to a region that had none.
   let dotSets = [];
   let fieldDots = [];
   let labelRects = [];
@@ -553,25 +554,52 @@
     });
     dotSets = features.map(() => []);
     fieldDots = [];
-    for (let j = j0; j <= j1; j++) {
+    const owner = new Map();
+    const node = (i, j) => {
+      const u = i * pitch + (stagger && (j & 1) ? pitch / 2 : 0);
       const v = j * rowStep;
-      const shift = stagger && (j & 1) ? pitch / 2 : 0;
+      const s = turnPoint([cx + u, cy + v], f.center, f.angle);
+      return { u, v, x: s[0], y: s[1], i, j, off: false };
+    };
+    for (let j = j0; j <= j1; j++) {
       for (let i = i0; i <= i1; i++) {
-        const u = i * pitch + shift;
-        const s = turnPoint([cx + u, cy + v], f.center, f.angle);
-        const k = lookup(s[0], s[1]);
-        if (k >= 0) dotSets[k].push([u, v, s[0], s[1]]);
-        else if (state.dotField) fieldDots.push([u, v, s[0], s[1]]);
+        const dot = node(i, j);
+        const k = lookup(dot.x, dot.y);
+        if (k >= 0) { owner.set(`${i}:${j}`, { k, index: dotSets[k].length }); dotSets[k].push(dot); }
+        else if (state.dotField) fieldDots.push(dot);
       }
     }
-    // Every region keeps at least one dot, or a coarse grid would swallow Москва, Севастополь and the small republics.
-    features.forEach((d, k) => {
-      if (dotSets[k].length) return;
-      const c = path.centroid(d);
+    // A region no node landed in (Москва, Севастополь, the small republics on a coarse grid) takes the grid node
+    // nearest to its centroid — a neighbour hands it over if it was theirs — so every dot stays on the grid and no two
+    // overlap. Bigger regions choose first; a node given away this way is not given away again.
+    const claimed = new Set();
+    const seat = k => {
+      const c = path.centroid(features[k]);
       if (!c || !isFinite(c[0]) || !isFinite(c[1])) return;
       const local = turnPoint(c, f.center, -f.angle);
-      dotSets[k].push([local[0] - cx, local[1] - cy, c[0], c[1]]);
-    });
+      const u = local[0] - cx, v = local[1] - cy;
+      const jc = Math.round(v / rowStep);
+      const candidates = [];
+      for (let j = jc - 1; j <= jc + 1; j++) {
+        const ic = Math.round((u - (stagger && (j & 1) ? pitch / 2 : 0)) / pitch);
+        for (let i = ic - 1; i <= ic + 1; i++) {
+          const dot = node(i, j);
+          candidates.push({ dot, distance: (dot.u - u) ** 2 + (dot.v - v) ** 2 });
+        }
+      }
+      candidates.sort((a, b) => a.distance - b.distance);
+      const pick = candidates.find(({ dot }) => !claimed.has(`${dot.i}:${dot.j}`));
+      if (!pick) return;
+      const key = `${pick.dot.i}:${pick.dot.j}`;
+      claimed.add(key);
+      const previous = owner.get(key);
+      if (previous) dotSets[previous.k][previous.index].off = true;
+      dotSets[k].push(pick.dot);
+    };
+    const byArea = features.map((d, k) => k).sort((a, b) => features[b].area - features[a].area);
+    byArea.filter(k => !dotSets[k].length).forEach(seat);
+    // A region whose only node was just handed over gets seated in turn.
+    byArea.filter(k => dotSets[k].length && dotSets[k].every(dot => dot.off)).forEach(seat);
     dotsEmitKey = null;
   }
 
@@ -585,8 +613,8 @@
     const nearest = (list, u, v, k) => {
       let best = -1, bestDistance = Infinity;
       list.forEach((dot, i) => {
-        if (taken.has(`${k}:${i}`)) return;
-        const distance = (dot[0] - u) ** 2 + (dot[1] - v) ** 2;
+        if (dot.off || taken.has(`${k}:${i}`)) return;
+        const distance = (dot.u - u) ** 2 + (dot.v - v) ** 2;
         if (distance < bestDistance) { bestDistance = distance; best = i; }
       });
       return { best, bestDistance };
@@ -610,7 +638,7 @@
         taken.add(`${k}:${found.best}`);
         const dot = dotSets[k][found.best];
         city.dot = { k, i: found.best };
-        city.point = [dot[2], dot[3]];
+        city.point = [dot.x, dot.y];
       });
   }
 
@@ -622,7 +650,7 @@
     const cityDots = new Set(cities.filter(city => city.dot && state.selectedCities.has(city.id)).map(city => `${city.dot.k}:${city.dot.i}`));
     // Text sits on clean paper: dots whose centre falls under a label box (padded by the dot itself) are dropped.
     const rects = labelRects.filter(r => r.kind === "label").map(r => ({ x1: r.x1 - radius, y1: r.y1 - radius, x2: r.x2 + radius, y2: r.y2 + radius }));
-    const clear = dot => !rects.some(r => dot[2] > r.x1 && dot[2] < r.x2 && dot[3] > r.y1 && dot[3] < r.y2);
+    const clear = dot => !dot.off && !rects.some(r => dot.x > r.x1 && dot.x < r.x2 && dot.y > r.y1 && dot.y < r.y2);
     const key = `${dotsKey}|${[...cityDots].sort().join(",")}|${rects.map(r => `${Math.round(r.x1)},${Math.round(r.y1)},${Math.round(r.x2)},${Math.round(r.y2)}`).join(";")}`;
     if (dotsEmitKey !== key) {
       layer.attr("transform", `translate(${f.center[0]},${f.center[1]}) rotate(${f.angle * 180 / Math.PI})`);
@@ -681,9 +709,10 @@
     };
   }
 
-  function dotsPath(points, r, shape) {
+  function dotsPath(dots, r, shape) {
     const n = v => Math.round(v * 10) / 10;
     const side = n(r * 2);
+    const points = dots.map(dot => Array.isArray(dot) ? dot : [dot.u, dot.v]);
     if (shape === "circle") return points.map(([u, v]) => `M${n(u - r)},${n(v)}a${n(r)},${n(r)} 0 1 0 ${side},0a${n(r)},${n(r)} 0 1 0 -${side},0`).join("");
     if (shape === "square") return points.map(([u, v]) => `M${n(u - r)},${n(v - r)}h${side}v${side}h-${side}z`).join("");
     const c = n(r * .4), flat = n(r * 2 - c * 2);
