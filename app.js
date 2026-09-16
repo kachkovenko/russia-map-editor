@@ -463,7 +463,7 @@
       .attr("stroke-width", halo);
 
     const geo = markerGeometry();
-    // In the mosaic the marker is one of the grid's own dots: same shape and size, turned with the grid, no outline.
+    // In the mosaic the marker is one of the grid's own dots: same shape and size, no outline.
     const markerD = mosaic ? dotsPath([[0, 0]], geo.r, state.dotShape) : markerPath(geo.shape, geo.r);
     const markerOutline = state.markerOutline && !mosaic;
     cityGroups.each(function (d) {
@@ -474,7 +474,6 @@
       group.select(".city-marker__ring").attr("display", geo.shape === "circle" && !mosaic ? null : "none")
         .attr("r", geo.reach).attr("stroke", state.markerColor);
       group.select(".city-marker").attr("d", markerD).attr("fill", state.markerColor)
-        .attr("transform", mosaic ? `rotate(${mapFrame.angle * 180 / Math.PI})` : null)
         .attr("stroke", markerOutline ? state.markerOutlineColor : "none")
         .attr("stroke-width", markerOutline ? 1.5 : 0).attr("stroke-linejoin", "round");
       group.select(".city-marker__eye").attr("display", geo.shape === "pin" && !mosaic ? null : "none")
@@ -510,11 +509,11 @@
     document.getElementById("projection-help").textContent = PROJECTION_HELP[state.projection];
   }
 
-  // Mosaic style: every region becomes one path of dot subpaths. The dot grid lives in the map object's own frame
-  // (origin at the frame's centre, pitch scaled with the map's zoom, rows turned with the map), so the pattern travels,
-  // grows and turns with the map instead of being resampled against the slide. Two phases per restyle: `prepareDots`
-  // samples the grid (when needed) and seats every visible city on its nearest free dot before labels are laid out;
-  // `emitDots` then writes the paths, leaving out the city dots and the dots under label text.
+  // Mosaic style: every region becomes one path of dot subpaths. The dot grid is anchored to the map object (origin at
+  // the frame's centre, pitch scaled with the map's zoom), so the pattern travels and grows with the map, but its rows
+  // stay level with the slide: turning the map resamples it, the way a dotted map always reads as rows. Two phases per
+  // restyle: `prepareDots` samples the grid (when needed) and seats every visible city on its nearest free dot before
+  // labels are laid out; `emitDots` then writes the paths, leaving out the city dots and the dots under label text.
   function prepareDots() {
     const mosaic = state.mapStyle === "mosaic";
     cities.forEach(city => { city.point = city.projected; city.dot = null; });
@@ -533,33 +532,25 @@
     const pitch = dotPitch();
     const stagger = state.dotLayout === "stagger";
     const rowStep = stagger ? pitch * Math.sqrt(3) / 2 : pitch;
-    // Sampling window in the map's unturned frame: its box, widened to the slide when the field around it is on.
-    let u0 = f.x - cx, u1 = f.x + f.width - cx, v0 = f.y - cy, v1 = f.y + f.height - cy;
+    // Sampling window, relative to the frame's centre: the turned map's bounding box, widened to the slide when the
+    // field around it is on.
+    const corners = Object.values(frameCorners());
     if (state.dotField) {
-      const corners = state.frame
-        ? [[0, 0], [width, 0], [width, height], [0, height]]
-        : [[f.x - pitch * 2, f.y - pitch * 2], [f.x + f.width + pitch * 2, f.y - pitch * 2], [f.x + f.width + pitch * 2, f.y + f.height + pitch * 2], [f.x - pitch * 2, f.y + f.height + pitch * 2]];
-      corners.forEach(p => {
-        const [x, y] = turnPoint(p, f.center, -f.angle);
-        u0 = Math.min(u0, x - cx); u1 = Math.max(u1, x - cx); v0 = Math.min(v0, y - cy); v1 = Math.max(v1, y - cy);
-      });
+      if (state.frame) corners.push([0, 0], [width, 0], [width, height], [0, height]);
+      else corners.forEach(([x, y]) => corners.push([x - pitch * 2, y - pitch * 2], [x + pitch * 2, y + pitch * 2]));
     }
+    const u0 = Math.min(...corners.map(p => p[0])) - cx, u1 = Math.max(...corners.map(p => p[0])) - cx;
+    const v0 = Math.min(...corners.map(p => p[1])) - cy, v1 = Math.max(...corners.map(p => p[1])) - cy;
     const i0 = Math.floor(u0 / pitch) - 1, i1 = Math.ceil(u1 / pitch) + 1;
     const j0 = Math.floor(v0 / rowStep) - 1, j1 = Math.ceil(v1 / rowStep) + 1;
-    const turned = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]].map(([u, v]) => turnPoint([cx + u, cy + v], f.center, f.angle));
-    const lookup = rasterizeRegions({
-      x: Math.min(...turned.map(p => p[0])) - pitch, y: Math.min(...turned.map(p => p[1])) - pitch,
-      width: Math.max(...turned.map(p => p[0])) - Math.min(...turned.map(p => p[0])) + pitch * 2,
-      height: Math.max(...turned.map(p => p[1])) - Math.min(...turned.map(p => p[1])) + pitch * 2
-    });
+    const lookup = rasterizeRegions({ x: cx + u0 - pitch, y: cy + v0 - pitch, width: u1 - u0 + pitch * 2, height: v1 - v0 + pitch * 2 });
     dotSets = features.map(() => []);
     fieldDots = [];
     const owner = new Map();
     const node = (i, j) => {
       const u = i * pitch + (stagger && (j & 1) ? pitch / 2 : 0);
       const v = j * rowStep;
-      const s = turnPoint([cx + u, cy + v], f.center, f.angle);
-      return { u, v, x: s[0], y: s[1], i, j, off: false };
+      return { u, v, x: cx + u, y: cy + v, i, j, off: false };
     };
     for (let j = j0; j <= j1; j++) {
       for (let i = i0; i <= i1; i++) {
@@ -576,8 +567,7 @@
     const seat = k => {
       const c = path.centroid(features[k]);
       if (!c || !isFinite(c[0]) || !isFinite(c[1])) return;
-      const local = turnPoint(c, f.center, -f.angle);
-      const u = local[0] - cx, v = local[1] - cy;
+      const u = c[0] - cx, v = c[1] - cy;
       const jc = Math.round(v / rowStep);
       const candidates = [];
       for (let j = jc - 1; j <= jc + 1; j++) {
@@ -622,8 +612,7 @@
     cities.filter(city => state.selectedCities.has(city.id) && city.projected)
       .sort((a, b) => b.population - a.population)
       .forEach(city => {
-        const local = turnPoint(city.projected, f.center, -f.angle);
-        const u = local[0] - cx, v = local[1] - cy;
+        const u = city.projected[0] - cx, v = city.projected[1] - cy;
         let k = index.get(city.regionId);
         let found = k === undefined ? { best: -1 } : nearest(dotSets[k], u, v, k);
         if (found.best < 0) {
@@ -653,7 +642,7 @@
     const clear = dot => !dot.off && !rects.some(r => dot.x > r.x1 && dot.x < r.x2 && dot.y > r.y1 && dot.y < r.y2);
     const key = `${dotsKey}|${[...cityDots].sort().join(",")}|${rects.map(r => `${Math.round(r.x1)},${Math.round(r.y1)},${Math.round(r.x2)},${Math.round(r.y2)}`).join(";")}`;
     if (dotsEmitKey !== key) {
-      layer.attr("transform", `translate(${f.center[0]},${f.center[1]}) rotate(${f.angle * 180 / Math.PI})`);
+      layer.attr("transform", `translate(${f.center[0]},${f.center[1]})`);
       layer.select(".dots--field").attr("d", dotsPath(fieldDots.filter(clear), radius, state.dotShape));
       dotCount = 0;
       layer.selectAll(".dots--region").data(features, d => d.properties.id)
