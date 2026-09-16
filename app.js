@@ -40,7 +40,7 @@
   });
 
   const defaults = {
-    tab: "regions", gradient: true, fillStart: "#6d5dfc", fillEnd: "#29c7ac",
+    tab: "regions", gradient: true, fillStart: "#3b5f8a", fillEnd: "#b9cad8",
     angle: 25, gradientStart: 0, gradientEnd: 100, opacity: 1, selectedColor: "#ff5f46", borders: true, borderColor: "#ffffff",
     borderWidth: 0.8, regionLabels: false, regionLabelsMode: "all", regionLabelsCaps: false, regionFontSize: 11, cityLabels: true, cityFontSize: 12,
     labelFont: "inter", leaderLines: true, leaderColor: "#171717", labelHalo: true, labelHaloWidth: 1.5, labelHaloColor: "#ffffff",
