@@ -26,25 +26,38 @@
     globe: "Эффект широкоугольной линзы: точка обзора крупнее, удалённые края компактнее. Крестик на карте — точка обзора: перетащите его туда, куда «смотрим»; двойной клик возвращает в центр."
   });
 
+  // Label fonts: six Google Fonts under the SIL Open Font License, self-hosted (bold Latin + Cyrillic subsets for the
+  // screen, unmodified originals with OFL.txt in fonts/pack for the export archive), plus two fonts every office has.
+  const LABEL_FONTS = Object.freeze({
+    inter: { name: "Inter", stack: '"Inter", Arial, sans-serif', pack: "inter", files: ["Inter[opsz,wght].ttf"] },
+    "golos-text": { name: "Golos Text", stack: '"Golos Text", Arial, sans-serif', pack: "golos-text", files: ["GolosText[wght].ttf"] },
+    montserrat: { name: "Montserrat", stack: '"Montserrat", Arial, sans-serif', pack: "montserrat", files: ["Montserrat[wght].ttf"] },
+    "pt-sans": { name: "PT Sans", stack: '"PT Sans", Arial, sans-serif', pack: "pt-sans", files: ["PT_Sans-Web-Regular.ttf", "PT_Sans-Web-Bold.ttf"] },
+    "pt-serif": { name: "PT Serif", stack: '"PT Serif", Georgia, serif', pack: "pt-serif", files: ["PT_Serif-Web-Regular.ttf", "PT_Serif-Web-Bold.ttf"] },
+    unbounded: { name: "Unbounded", stack: '"Unbounded", Arial, sans-serif', pack: "unbounded", files: ["Unbounded[wght].ttf"] },
+    arial: { name: "Arial", stack: "Arial, Helvetica, sans-serif" },
+    georgia: { name: "Georgia", stack: 'Georgia, "Times New Roman", serif' }
+  });
+
   const defaults = {
     tab: "regions", gradient: true, fillStart: "#6d5dfc", fillEnd: "#29c7ac",
     angle: 25, gradientStart: 0, gradientEnd: 100, opacity: 1, selectedColor: "#ff5f46", borders: true, borderColor: "#ffffff",
     borderWidth: 0.8, regionLabels: false, regionLabelsMode: "all", regionFontSize: 11, cityLabels: true, cityFontSize: 12,
-    leaderLines: true, leaderColor: "#171717", labelHalo: true, labelHaloWidth: 1.5, labelHaloColor: "#ffffff",
+    labelFont: "inter", leaderLines: true, leaderColor: "#171717", labelHalo: true, labelHaloWidth: 1.5, labelHaloColor: "#ffffff",
     markerColor: "#171717", markerShape: "circle", markerSize: 6, markerOutline: true, markerOutlineColor: "#ffffff",
     projection: "conic", rotation: 0, frame: true, ratio: "16:9",
-    background: "#ffffff", transparent: false, zoom: 1, mapX: 0, mapY: 0, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, lensLon: 91.06, lensLat: 65.36, projectCompanion: true
+    background: "#ffffff", transparent: false, zoom: 1, mapX: 0, mapY: 0, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, lensLon: 91.06, lensLat: 65.36, projectCompanion: true, fontCompanion: true
   };
   const PROJECT_SETTING_KEYS = Object.freeze([
     "gradient", "fillStart", "fillEnd", "angle", "gradientStart", "gradientEnd", "opacity", "selectedColor", "borders",
     "borderColor", "borderWidth", "regionLabels", "regionLabelsMode", "regionFontSize", "cityLabels", "cityFontSize",
-    "leaderLines", "leaderColor", "labelHalo", "labelHaloWidth", "labelHaloColor", "markerColor", "markerShape", "markerSize",
+    "labelFont", "leaderLines", "leaderColor", "labelHalo", "labelHaloWidth", "labelHaloColor", "markerColor", "markerShape", "markerSize",
     "markerOutline", "markerOutlineColor",
     "projection", "rotation", "frame", "ratio", "background", "transparent", "zoom", "mapX", "mapY", "viewZoom", "panX", "panY", "lensStrength", "lensLon", "lensLat",
-    "projectCompanion"
+    "projectCompanion", "fontCompanion"
   ]);
   const VIEW_KEYS = Object.freeze(["viewZoom", "panX", "panY"]);
-  const BOOLEAN_SETTINGS = new Set(["gradient", "borders", "regionLabels", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "frame", "transparent", "projectCompanion"]);
+  const BOOLEAN_SETTINGS = new Set(["gradient", "borders", "regionLabels", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "frame", "transparent", "projectCompanion", "fontCompanion"]);
   const COLOR_SETTINGS = new Set(["fillStart", "fillEnd", "selectedColor", "borderColor", "leaderColor", "labelHaloColor", "markerColor", "markerOutlineColor", "background"]);
   const NUMBER_RANGES = Object.freeze({
     angle: [0, 360], gradientStart: [0, 100], gradientEnd: [0, 100], opacity: [.1, 1], borderWidth: [.2, 4], markerSize: [3, 12],
@@ -54,7 +67,7 @@
   });
   const ENUM_SETTINGS = Object.freeze({
     projection: ["conic", "mercator", "globe"], ratio: ["16:9", "4:3"], tab: ["regions", "cities", "selected"], regionLabelsMode: ["all", "selected"],
-    markerShape: ["circle", "square", "diamond", "pin"]
+    markerShape: ["circle", "square", "diamond", "pin"], labelFont: Object.keys(LABEL_FONTS)
   });
   // `selectedRegions` are the marked (highlighted, listed) regions; `activeRegions` is the transient pick on the map
   // whose fill is being edited; `regionColors` holds per-region fills that override the shared highlight colour.
@@ -105,7 +118,7 @@
   let lensDrag = null;
   const activePointers = new Map();
   const history = { past: [], future: [], current: null, burst: null };
-  const MAP_FONT = "Inter, Arial, sans-serif";
+  function mapFont() { return LABEL_FONTS[state.labelFont].stack; }
   const measureContext = document.createElement("canvas").getContext("2d");
   const measureCache = new Map();
   let shownRegionLabels = new Set();
@@ -184,6 +197,18 @@
     render();
     history.current = snapshot();
     updateHistoryButtons();
+    applyLabelFont();
+  }
+
+  // Labels are measured on a canvas, so the chosen font has to be loaded before they are laid out; until then the
+  // fallback metrics are used and the map is restyled once the real font arrives.
+  function applyLabelFont() {
+    const stack = mapFont();
+    svg.node().style.setProperty("--map-font", stack);
+    document.getElementById("label-font").style.fontFamily = stack;
+    measureCache.clear();
+    if (!document.fonts?.load) return;
+    document.fonts.load(`bold 12px ${stack}`).then(() => { measureCache.clear(); restyle(); }).catch(() => {});
   }
 
   function makeCities(items) {
@@ -491,7 +516,7 @@
     const key = `${fontSize}|${text}`;
     let w = measureCache.get(key);
     if (w === undefined) {
-      measureContext.font = `bold ${fontSize}px ${MAP_FONT}`;
+      measureContext.font = `bold ${fontSize}px ${mapFont()}`;
       w = measureContext.measureText(text).width;
       measureCache.set(key, w);
     }
@@ -1199,6 +1224,11 @@
     bindColor("background-color", "background");
     bindCheck("transparent-background", "transparent");
     bindCheck("project-companion", "projectCompanion");
+    bindCheck("font-companion", "fontCompanion");
+    document.getElementById("label-font").addEventListener("change", event => {
+      state.labelFont = event.target.value;
+      applyLabelFont(); updateFontCompanionOption(); restyle(); saveState();
+    });
 
     document.querySelectorAll("[data-palette]").forEach(button => button.addEventListener("click", () => {
       [state.fillStart, state.fillEnd] = button.dataset.palette.split(",").map(v => v.toLowerCase());
@@ -1595,6 +1625,18 @@
     document.getElementById("gradient-stops-value").textContent = `${state.gradientStart}% — ${state.gradientEnd}%`;
   }
 
+  // The font can only be attached when it is one of the bundled ones; system fonts need no archive.
+  function updateFontCompanionOption() {
+    const font = LABEL_FONTS[state.labelFont];
+    const option = document.getElementById("font-companion-option");
+    const input = document.getElementById("font-companion");
+    option.classList.toggle("is-disabled", !font.pack);
+    input.disabled = !font.pack;
+    document.getElementById("font-companion-text").textContent = font.pack
+      ? `Приложить шрифт ${font.name}: TTF и лицензия, чтобы PPTX и SVG открылись с тем же шрифтом на другом компьютере`
+      : `${font.name} есть на любом компьютере — прикладывать шрифт не нужно`;
+  }
+
   function updateLabelModeControls() {
     document.getElementById("region-label-options").hidden = !state.regionLabels;
     document.getElementById("city-label-options").hidden = !state.cityLabels;
@@ -1635,7 +1677,7 @@
       "leader-color": state.leaderColor, "marker-outline": state.markerOutline, "marker-outline-color": state.markerOutlineColor,
       "marker-size": state.markerSize, "rotation": state.rotation, "lens-strength": state.lensStrength, "frame-enabled": state.frame,
       "background-color": state.background, "transparent-background": state.transparent,
-      "project-companion": state.projectCompanion
+      "project-companion": state.projectCompanion, "font-companion": state.fontCompanion, "label-font": state.labelFont
     };
     Object.entries(pairs).forEach(([id, value]) => {
       const el = document.getElementById(id);
@@ -1658,6 +1700,7 @@
     document.getElementById("rotation-value").textContent = `${Math.round(state.rotation)}°`;
     document.getElementById("lens-strength-value").textContent = `${Math.round(state.lensStrength)}%`;
     document.getElementById("border-controls").style.opacity = state.borders ? 1 : .4;
+    updateFontCompanionOption();
     updateGradientControls();
     updateLabelModeControls();
     document.querySelectorAll("[data-ratio]").forEach(el => el.classList.toggle("is-active", el.dataset.ratio === state.ratio));
@@ -1957,7 +2000,7 @@
     });
     clone.querySelectorAll(".is-hover, .is-selected, .is-manual").forEach(el => el.classList.remove("is-hover", "is-selected", "is-manual"));
     const style = document.createElementNS(SVG_NS, "style");
-    style.textContent = `text{font-family:${MAP_FONT};font-weight:bold}.region{vector-effect:non-scaling-stroke}.country-outline{fill:none;vector-effect:non-scaling-stroke}.region-label{text-anchor:middle}.region-label,.city-label{paint-order:stroke;stroke-linejoin:round}.city-marker__ring{fill:none;stroke-width:1;opacity:.3}.city-marker{filter:url(#marker-shadow)}.city-leader{stroke-linecap:round}`;
+    style.textContent = `text{font-family:${mapFont()};font-weight:bold}.region{vector-effect:non-scaling-stroke}.country-outline{fill:none;vector-effect:non-scaling-stroke}.region-label{text-anchor:middle}.region-label,.city-label{paint-order:stroke;stroke-linejoin:round}.city-marker__ring{fill:none;stroke-width:1;opacity:.3}.city-marker{filter:url(#marker-shadow)}.city-leader{stroke-linecap:round}`;
     clone.insertBefore(style, clone.firstChild);
     return { xml: new XMLSerializer().serializeToString(clone), width: bounds.width, height: bounds.height, bounds };
   }
@@ -1977,9 +2020,11 @@
       else if (format === "png") blob = (await renderPng(2)).blob;
       else if (format === "pptx") blob = await exportPptx();
       else return;
-      if (state.projectCompanion) {
-        await downloadWithProject(blob, `${stem}.${format}`, stem);
-        showToast(`${label} и JSON-проект сохранены одним ZIP`);
+      const font = LABEL_FONTS[state.labelFont];
+      const withFont = state.fontCompanion && !!font.pack;
+      if (state.projectCompanion || withFont) {
+        const attached = await downloadBundle(blob, `${stem}.${format}`, stem, { project: state.projectCompanion, font: withFont ? font : null });
+        showToast(`${label}${attached.join("")} — одним ZIP`);
       } else {
         downloadBlob(blob, `${stem}.${format}`);
         showToast(`${label} готов`);
@@ -1990,20 +2035,53 @@
     }
   }
 
-  // The export and its project go out as one ZIP: browsers block or question a second download that follows the first.
-  async function downloadWithProject(blob, filename, stem) {
+  // The export goes out as one ZIP with its project and/or the label font: browsers block or question a second
+  // download that follows the first, and the font must travel with its licence.
+  async function downloadBundle(blob, filename, stem, { project, font }) {
+    const attached = [];
     const projectName = `${stem}.project.json`;
-    const json = JSON.stringify(createProjectDocument(), null, 2);
+    const json = project ? JSON.stringify(createProjectDocument(), null, 2) : null;
     if (!window.JSZip) {
       downloadBlob(blob, filename);
-      setTimeout(() => downloadBlob(new Blob([json], { type: "application/json;charset=utf-8" }), projectName), 180);
-      return;
+      if (json) { setTimeout(() => downloadBlob(new Blob([json], { type: "application/json;charset=utf-8" }), projectName), 180); attached.push(" и JSON-проект"); }
+      return attached;
     }
     const zip = new window.JSZip();
     // PNG and PPTX are already compressed; deflating them again only costs time.
     zip.file(filename, blob, { compression: /\.(svg|json)$/i.test(filename) ? "DEFLATE" : "STORE" });
-    zip.file(projectName, json, { compression: "DEFLATE" });
+    if (json) { zip.file(projectName, json, { compression: "DEFLATE" }); attached.push(" и JSON-проект"); }
+    if (font) {
+      try {
+        const folder = `fonts/${font.name}`;
+        for (const file of [...font.files, "OFL.txt"]) {
+          const response = await fetch(`fonts/pack/${font.pack}/${encodeURIComponent(file)}`);
+          if (!response.ok) throw new Error(`${file}: ${response.status}`);
+          zip.file(`${folder}/${file}`, await response.arrayBuffer(), { compression: file.endsWith(".txt") ? "DEFLATE" : "STORE" });
+        }
+        zip.file("fonts/README.txt", "\ufeff" + fontReadme(font), { compression: "DEFLATE" });
+        attached.push(` и шрифт ${font.name}`);
+      } catch (error) {
+        console.error(error);
+        showToast("Шрифт не приложен: файлы шрифта недоступны (откройте редактор по http, а не как файл)", true);
+      }
+    }
     downloadBlob(await zip.generateAsync({ type: "blob", mimeType: "application/zip" }), `${stem}.zip`);
+    return attached;
+  }
+
+  function fontReadme(font) {
+    return [
+      `Шрифт подписей на карте — ${font.name}.`,
+      "",
+      "Чтобы PPTX и SVG открылись с тем же шрифтом на другом компьютере, установите его:",
+      "  Windows — правой кнопкой по файлу .ttf → «Установить» (или «Установить для всех пользователей»);",
+      "  macOS — двойной клик по .ttf → «Установить шрифт».",
+      "После установки перезапустите PowerPoint. В PowerPoint можно также включить «Файл → Параметры → Сохранение →",
+      "Внедрить шрифты в файл», и презентация станет самодостаточной.",
+      "",
+      `Шрифт распространяется по лицензии SIL Open Font License 1.1 — см. OFL.txt в папке «${font.name}».`,
+      "Файлы шрифта не изменены и взяты из каталога Google Fonts: https://fonts.google.com/"
+    ].join("\n");
   }
 
   async function copyPngToClipboard() {
@@ -2090,7 +2168,7 @@
       const textY = clamp(baseY - fontSize * .35 / 72 - textH / 2, 0, Math.max(0, slideH - textH));
       const options = {
         x: textX, y: textY, w: textW, h: textH,
-        margin: 0, fontFace: "Arial", fontSize: Math.round(fontSize * 10) / 10, bold: true,
+        margin: 0, fontFace: LABEL_FONTS[state.labelFont].name, fontSize: Math.round(fontSize * 10) / 10, bold: true,
         color: color.slice(1).toUpperCase(),
         align: anchor === "end" ? "right" : anchor === "middle" ? "center" : "left",
         valign: "mid", breakLine: false, isTextBox: true

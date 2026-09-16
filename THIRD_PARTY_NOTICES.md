@@ -5,6 +5,13 @@
 - PptxGenJS 4.0.1 — MIT License, https://github.com/gitbrent/PptxGenJS
 - JSZip 3.10.1 (bundled inside `lib/pptxgen.bundle.js`, also used directly for the ZIP export) — MIT License, https://github.com/Stuk/jszip
 - Google Sans (variable, `fonts/*.woff2`) — SIL Open Font License 1.1, https://fonts.google.com/specimen/Google+Sans
+- Label fonts, SIL Open Font License 1.1 (web subsets `fonts/<name>-*.woff2` served by Google Fonts; unmodified originals and `OFL.txt` in `fonts/pack/<name>/`, redistributed with exports as permitted by the OFL — bundled, never sold on their own):
+  - Inter — Copyright 2020 The Inter Project Authors (https://github.com/rsms/inter)
+  - Golos Text — Copyright 2019 The Golos Text Project Authors (https://github.com/googlefonts/golos-text)
+  - Montserrat — Copyright 2024 The Montserrat.Git Project Authors (https://github.com/JulietaUla/Montserrat.git)
+  - PT Sans — Copyright (c) 2010, ParaType Ltd. (http://www.paratype.com/public)
+  - PT Serif — Copyright (c) 2010, ParaType Ltd. (http://www.paratype.com/public)
+  - Unbounded — Copyright 2022 The Unbounded Project Authors (https://github.com/googlefonts/unbounded)
 - City catalogue (`data/cities.js`) — built from Wikidata, CC0 1.0 (public domain dedication), https://www.wikidata.org/ — see `tools/build-cities.mjs`.
 - Region geometry — adapted from GeoJSON Atlas commit `644874ada665a0f2c0c81a0d47adacea97365c30`, CC0 1.0, https://github.com/BenPortner/geojson-atlas
 - GeoJSON Atlas region linework is based on Natural Earth 1:10m, public domain, https://www.naturalearthdata.com/about/terms-of-use/

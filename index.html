@@ -66,6 +66,7 @@
             <button data-project-action="save"><b>JSON</b><small>Сохранить редактируемый проект</small></button>
             <div class="export-popover__divider"></div>
             <label class="export-popover__option"><input id="project-companion" type="checkbox" checked><span>Сохранять JSON-проект вместе с файлом (одним ZIP)</span></label>
+            <label class="export-popover__option" id="font-companion-option"><input id="font-companion" type="checkbox" checked><span id="font-companion-text">Приложить шрифт подписей: TTF и лицензия, чтобы PPTX и SVG открылись с тем же шрифтом на другом компьютере</span></label>
           </div>
         </div>
       </div>
@@ -228,6 +229,22 @@
                 <label class="mini-color"><input id="border-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="border-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код границ" spellcheck="false"></label>
                 <label class="number-control"><input id="border-width" type="number" min="0.2" max="4" step="0.2" value="0.8"><span>px</span></label>
               </div>
+              <label class="select-row"><span>Шрифт подписей</span>
+                <select id="label-font">
+                  <optgroup label="Встроенные">
+                    <option value="inter">Inter</option>
+                    <option value="golos-text">Golos Text</option>
+                    <option value="montserrat">Montserrat</option>
+                    <option value="pt-sans">PT Sans</option>
+                    <option value="pt-serif">PT Serif</option>
+                    <option value="unbounded">Unbounded</option>
+                  </optgroup>
+                  <optgroup label="Системные">
+                    <option value="arial">Arial</option>
+                    <option value="georgia">Georgia</option>
+                  </optgroup>
+                </select>
+              </label>
               <label class="switch-row"><span>Названия регионов</span><input class="switch" id="region-labels-enabled" type="checkbox"></label>
               <div class="sub-options" id="region-label-options" hidden>
                 <div class="segmented segmented--sub" id="region-labels-mode">
