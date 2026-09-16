@@ -196,9 +196,9 @@ kbd { padding: 2px 5px; color: var(--faint); border: 1px solid #e6e3de; border-r
 .section-toggle:hover { background: #faf9f7; }
 .section-toggle:focus-visible { outline-offset: -3px; }
 .section-toggle > span:first-child { flex: 1; }
-.section-number { color: #b7b4ae; font-size: 10px; }
-.section-chevron { width: 16px; color: var(--faint); font-size: 15px; line-height: 1; text-align: center; transform: translateY(-2px); transition: transform .18s ease; }
-.control-section.is-collapsed .section-chevron { transform: translateY(-1px) rotate(-90deg); }
+.section-chevron { display: grid; place-items: center; width: 16px; height: 16px; color: var(--faint); transform-origin: center; transition: transform .18s ease; }
+.section-chevron svg { display: block; }
+.control-section.is-collapsed .section-chevron { transform: rotate(-90deg); }
 .section-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .2s ease; }
 .control-section.is-collapsed .section-body { grid-template-rows: 0fr; }
 .section-body__inner { min-height: 0; overflow: hidden; padding: 0 20px 18px; }
