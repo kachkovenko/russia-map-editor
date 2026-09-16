@@ -315,7 +315,7 @@
                 <label class="color-row"><span>Цвет контура</span><span class="swatch"><input id="label-halo-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="label-halo-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код контура текста" spellcheck="false"></span></label>
               </div>
               <label class="color-row"><span>Маркеры городов</span><span class="swatch"><input id="marker-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="marker-color" value="#171717" maxlength="7" aria-label="HEX-код маркеров" spellcheck="false"></span></label>
-              <div class="shape-row">
+              <div class="shape-row" id="marker-shape-row">
                 <span>Форма маркера</span>
                 <div class="shape-picker" role="group" aria-label="Форма маркера">
                   <button type="button" class="is-active" data-marker-shape="circle" title="Круг" aria-label="Круг"><svg viewBox="-8 -8 16 16" aria-hidden="true"><circle r="5"></circle></svg></button>
@@ -324,8 +324,8 @@
                   <button type="button" data-marker-shape="pin" title="Пин" aria-label="Пин"><svg viewBox="-8 -10 16 16" aria-hidden="true"><path d="M0,4L-3.2,0A4,4 0 1 1 3.2,0Z"></path><circle cy="-2.4" r="1.4" fill="#fff"></circle></svg></button>
                 </div>
               </div>
-              <label class="range-row"><span>Размер маркера <output id="marker-size-value">6</output></span><span class="range-track" style="--ticks: 9"><input id="marker-size" type="range" min="3" max="12" value="6"></span></label>
-              <label class="switch-row"><span>Контур маркера</span><input class="switch" id="marker-outline" type="checkbox" checked></label>
+              <label class="range-row" id="marker-size-row"><span>Размер маркера <output id="marker-size-value">6</output></span><span class="range-track" style="--ticks: 9"><input id="marker-size" type="range" min="3" max="12" value="6"></span></label>
+              <label class="switch-row" id="marker-outline-row"><span>Контур маркера</span><input class="switch" id="marker-outline" type="checkbox" checked></label>
               <div class="sub-options" id="marker-outline-options">
                 <label class="color-row"><span>Цвет контура</span><span class="swatch"><input id="marker-outline-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="marker-outline-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код контура маркера" spellcheck="false"></span></label>
               </div>

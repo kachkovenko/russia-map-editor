@@ -205,6 +205,9 @@ kbd { padding: 1px 4px; color: var(--faint); border: 1px solid var(--line); bord
 .dots { pointer-events: none; transition: filter .12s; }
 .dots.is-hover { filter: brightness(1.1); }
 .dots.is-selected { filter: saturate(1.08); }
+/* In the mosaic a city is one of the grid's dots: flat like its neighbours, dimmed a little on hover. */
+#map.is-mosaic .city-marker { filter: none; transition: opacity .12s; }
+#map.is-mosaic .city.is-hover .city-marker { opacity: .7; }
 .compass { pointer-events: none; }
 .compass text { font-weight: 700; paint-order: stroke; stroke-linejoin: round; text-anchor: middle; }
 .region-label { pointer-events: none; text-anchor: middle; font-weight: 650; paint-order: stroke; stroke-linejoin: round; }
