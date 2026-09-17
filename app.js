@@ -22,14 +22,14 @@
   };
   const STYLE_HELP = Object.freeze({
     atlas: "Сплошная заливка регионов, границы и контур страны.",
-    mosaic: "Регионы набраны сеткой точек, как на инфографике; точки едут и поворачиваются вместе с картой. Линза недоступна."
+    mosaic: "Регионы набраны сеткой точек, как на инфографике; точки едут и поворачиваются вместе с картой. Глобус недоступен."
   });
   // Region lookup for the mosaic is rasterised; sides above this many pixels are scaled down.
   const MAX_SAMPLE_SIDE = 4096;
   const PROJECTION_HELP = Object.freeze({
     conic: "Равновеликая проекция: площади регионов сравниваются корректнее.",
     mercator: "Привычный вид веб-карт. Северные территории визуально увеличены.",
-    globe: "Эффект широкоугольной линзы: точка обзора крупнее, удалённые края компактнее. Крестик на карте — точка обзора: перетащите его туда, куда «смотрим»; двойной клик возвращает в центр."
+    globe: "Карта лежит на глобусе, вид сверху. Крестик — точка, над которой висит наблюдатель: перетащите его; двойной клик возвращает в центр. «Перспектива» — высота: ближе — центр крупнее, края уходят за горизонт."
   });
 
   // Label fonts: six Google Fonts under the SIL Open Font License, self-hosted (bold Latin + Cyrillic subsets for the
@@ -306,39 +306,46 @@
     const center = [(box[0][0] + box[1][0]) / 2, (box[0][1] + box[1][1]) / 2];
     const straight = projectionFor(105).scale(scale).translate(translate);
 
-    // Turning the central meridian turns a conic image rigidly about the cone's apex; shifting it back so the frame's
-    // centre stays put makes it a turn about that centre — the map rotates like an object, frame and all.
-    const turned = turnedProjection(projectionFor, straight, center, state.rotation, scale, translate);
-    let frameBox = box;
     lensBase = null;
+    let build = r => projectionFor(105 + r).scale(scale).translate(translate);
+    let level = straight;
+    let frameBox = box;
+    let frameCenter = center;
     if (state.projection === "globe") {
-      // The lens bulges at the viewpoint (a geographic point, so it travels with the map); its radius reaches the
-      // farthest edge of the box. Both projections put the viewpoint at the image of the same point, so the lens
-      // commutes with the turn and the unturned lens outline is the frame.
+      // The map lies on a globe seen from above the viewpoint. The viewpoint keeps the screen position it has on the
+      // flat map (so switching projections leaves the point under the crosshair in place and the crosshair is
+      // dragged over the flat map's image), and the globe's scale matches the flat map's, so the land under the
+      // crosshair keeps its size while the rest curves away. Turning rolls the view about the frame's centre.
       const viewpoint = [state.lensLon, state.lensLat];
-      const focus = straight(viewpoint);
-      const radius = Math.max(focus[0] - box[0][0], box[1][0] - focus[0], focus[1] - box[0][1], box[1][1] - focus[1], 1);
-      frameBox = d3.geoPath(createLensProjection(straight, focus, radius, state.lensStrength)).bounds(collection);
-      lensBase = turned.projection;
-      projection = createLensProjection(turned.projection, turned.projection(viewpoint), radius, state.lensStrength);
-    } else {
-      projection = turned.projection;
+      const anchor = straight(viewpoint);
+      lensBase = straight;
+      build = r => perspectiveProjection(state.lensStrength).scale(scale).rotate([-viewpoint[0], -viewpoint[1], -r]).translate(anchor);
+      level = build(0);
+      frameBox = d3.geoPath(level).bounds(collection);
+      frameCenter = [(frameBox[0][0] + frameBox[1][0]) / 2, (frameBox[0][1] + frameBox[1][1]) / 2];
     }
+    // Turning the central meridian turns a conic image rigidly about the cone's apex (rolling the globe's view turns
+    // it about the viewpoint); shifting it back so the frame's centre stays put makes it a turn about that centre —
+    // the map rotates like an object, frame and all.
+    const turned = turnedProjection(build, level, frameCenter, state.rotation);
+    projection = turned.projection;
     mapFrame = {
       x: frameBox[0][0], y: frameBox[0][1], width: frameBox[1][0] - frameBox[0][0], height: frameBox[1][1] - frameBox[0][1],
-      center, angle: turned.angle,
+      center: frameCenter, angle: turned.angle,
       // Screen angle per degree of rotation (0 for Mercator, whose "rotation" is only a horizontal shift).
-      anglePerDegree: (turnedProjection(projectionFor, straight, center, 10, scale, translate).angle) / 10
+      anglePerDegree: turnedProjection(build, level, frameCenter, 10).angle / 10
     };
   }
 
-  // Projection with the central meridian shifted by `rotation` degrees, translated so `center` maps onto itself;
-  // `angle` is the resulting turn of the image on screen (radians, clockwise positive).
-  function turnedProjection(projectionFor, straight, center, rotation, scale, translate) {
-    const projection = projectionFor(105 + rotation).scale(scale).translate(translate);
+  // `build(rotation)` gives the projection turned by `rotation` degrees; the result is translated so `center` maps
+  // onto itself, and `angle` is the resulting turn of the image on screen (radians, clockwise positive).
+  function turnedProjection(build, straight, center, rotation) {
+    const projection = build(rotation);
     if (!rotation) return { projection, angle: 0 };
     const geoCenter = straight.invert(center);
+    if (!geoCenter || !geoCenter.every(Number.isFinite)) return { projection, angle: 0 };
     const moved = projection(geoCenter);
+    const translate = projection.translate();
     projection.translate([translate[0] + center[0] - moved[0], translate[1] + center[1] - moved[1]]);
     const probe = projection(straight.invert([center[0], center[1] - 100]));
     let angle = Math.atan2(probe[1] - center[1], probe[0] - center[0]) + Math.PI / 2;
@@ -347,44 +354,27 @@
     return { projection, angle };
   }
 
-  function mapPlacement() {
-    return state.frame ? { zoom: state.zoom, x: state.mapX, y: state.mapY } : { zoom: 1, x: 0, y: 0 };
+  // Vertical perspective (Snyder): the globe seen by a viewer P Earth radii from its centre. `strength` sets the
+  // altitude — 0 is almost orthographic, 100 is a low orbit whose horizon lies just beyond the country's edges.
+  function perspectiveProjection(strength) {
+    const P = 1 + .35 + 8 * ((100 - clamp(strength, 0, 100)) / 100) ** 2;
+    const raw = (lambda, phi) => {
+      const cosphi = Math.cos(phi);
+      const k = (P - 1) / (P - cosphi * Math.cos(lambda));
+      return [k * cosphi * Math.sin(lambda), k * Math.sin(phi)];
+    };
+    raw.invert = (x, y) => {
+      const rho = Math.hypot(x, y);
+      if (!rho) return [0, 0];
+      const c = Math.asin((P - Math.sqrt(1 - rho * rho * (P + 1) / (P - 1))) / ((P - 1) / rho + rho / (P - 1)));
+      const sinc = Math.sin(c), cosc = Math.cos(c);
+      return [Math.atan2(x * sinc, rho * cosc), Math.asin(y * sinc / rho)];
+    };
+    return d3.geoProjection(raw).clipAngle(Math.acos(1 / P) * 180 / Math.PI - .1);
   }
 
-  function createLensProjection(baseProjection, [cx, cy], radius, strength) {
-    const amount = 1.5 * strength / 100;
-    const distort = point => {
-      if (!point) return null;
-      const dx = point[0] - cx;
-      const dy = point[1] - cy;
-      const distance = Math.hypot(dx, dy);
-      if (!distance || distance >= radius || !amount) return point;
-      const normalized = distance / radius;
-      const factor = (amount + 1) / (amount * normalized + 1);
-      return [cx + dx * factor, cy + dy * factor];
-    };
-    const lens = coordinates => distort(baseProjection(coordinates));
-    // d = d'/(a + 1 − a·d') undoes r' = r·(a + 1)/(a·r/R + 1); the coordinate readout relies on it.
-    lens.invert = point => {
-      const dx = point[0] - cx;
-      const dy = point[1] - cy;
-      const distance = Math.hypot(dx, dy);
-      if (!distance || !amount) return baseProjection.invert(point);
-      const normalized = distance / radius;
-      if (normalized >= 1) return baseProjection.invert(point);
-      const original = normalized / (amount + 1 - amount * normalized);
-      const factor = original / normalized;
-      return baseProjection.invert([cx + dx * factor, cy + dy * factor]);
-    };
-    lens.stream = output => baseProjection.stream({
-      point(x, y) { const p = distort([x, y]); output.point(p[0], p[1]); },
-      lineStart() { output.lineStart(); },
-      lineEnd() { output.lineEnd(); },
-      polygonStart() { output.polygonStart(); },
-      polygonEnd() { output.polygonEnd(); },
-      sphere() { if (output.sphere) output.sphere(); }
-    });
-    return lens;
+  function mapPlacement() {
+    return state.frame ? { zoom: state.zoom, x: state.mapX, y: state.mapY } : { zoom: 1, x: 0, y: 0 };
   }
 
   // Full render: recompute the projection and every geometry, then restyle.
@@ -1299,7 +1289,7 @@
   function updateLensFocus() {
     const focus = d3.select("#lens-focus");
     if (!lensBase) { focus.attr("display", "none"); return; }
-    const p = lensBase([state.lensLon, state.lensLat]);
+    const p = projection([state.lensLon, state.lensLat]);
     focus.attr("display", null).attr("transform", `translate(${p[0]},${p[1]}) scale(${1 / screenScale()})`);
   }
 
@@ -1317,7 +1307,7 @@
       event.stopPropagation();
       if (Math.hypot(event.clientX - lensDrag.startX, event.clientY - lensDrag.startY) > 2) lensDrag.moved = true;
       if (!lensDrag.moved) return;
-      const geo = lensBase.invert(slidePoint(event.clientX, event.clientY));
+      const geo = lensBase.invert(turnPoint(slidePoint(event.clientX, event.clientY), mapFrame.center, -mapFrame.angle));
       if (!geo || !geo.every(Number.isFinite)) return;
       state.lensLon = clamp(Math.round(geo[0] * 100) / 100, NUMBER_RANGES.lensLon[0], NUMBER_RANGES.lensLon[1]);
       state.lensLat = clamp(Math.round(geo[1] * 100) / 100, NUMBER_RANGES.lensLat[0], NUMBER_RANGES.lensLat[1]);
@@ -2126,7 +2116,7 @@
     document.querySelectorAll('[data-projection="globe"], [data-quick-projection="globe"]').forEach(el => {
       if (el.dataset.title === undefined) el.dataset.title = el.title;
       el.disabled = mosaic;
-      el.title = mosaic ? "Линза недоступна в стиле «Мозаика»" : el.dataset.title;
+      el.title = mosaic ? "Глобус недоступен в стиле «Мозаика»" : el.dataset.title;
     });
   }
 

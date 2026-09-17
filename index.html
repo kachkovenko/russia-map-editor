@@ -106,7 +106,7 @@
         <div class="stage-toolbar">
           <div class="view-switch" aria-label="Вид карты">
             <button class="is-active" data-quick-projection="conic">Плоская</button>
-            <button data-quick-projection="globe">Линза</button>
+            <button data-quick-projection="globe">Глобус</button>
           </div>
         </div>
 
@@ -151,7 +151,7 @@
                 <g class="map-selection__handle map-selection__corner" data-handle="sw"><rect x="-4.5" y="-4.5" width="9" height="9"></rect></g>
               </g>
               <g id="lens-focus" class="lens-focus" display="none">
-                <title>Точка обзора линзы: перетащите туда, куда «смотрим». Двойной клик возвращает в центр.</title>
+                <title>Точка обзора: наблюдатель висит над ней. Перетащите; двойной клик возвращает в центр.</title>
                 <circle class="lens-focus__ring" r="11"></circle>
                 <line x1="-17" y1="0" x2="-7" y2="0"></line><line x1="7" y1="0" x2="17" y2="0"></line>
                 <line x1="0" y1="-17" x2="0" y2="-7"></line><line x1="0" y1="7" x2="0" y2="17"></line>
@@ -335,11 +335,11 @@
               <div class="projection-grid">
                 <button class="is-active" data-projection="conic" title="Равновеликая проекция, оптимальная для России"><i class="projection-icon projection-icon--conic"></i><span>Атласная</span></button>
                 <button data-projection="mercator" title="Привычная проекция веб-карт, увеличивает северные территории"><i class="projection-icon projection-icon--flat"></i><span>Меркатор</span></button>
-                <button data-projection="globe" title="Широкоугольное искажение: центр крупнее, края компактнее"><i class="projection-icon projection-icon--globe"></i><span>Линза</span></button>
+                <button data-projection="globe" title="Карта на глобусе, вид сверху из точки обзора"><i class="projection-icon projection-icon--globe"></i><span>Глобус</span></button>
               </div>
               <p class="microcopy projection-help" id="projection-help">Равновеликая проекция: площади регионов сравниваются корректнее.</p>
               <label class="range-row"><span>Поворот <output id="rotation-value">0°</output></span><span class="range-track" style="--ticks: 6"><input id="rotation" type="range" min="-45" max="45" value="0"></span></label>
-              <label class="range-row globe-only" hidden><span>Сила линзы <output id="lens-strength-value">55%</output></span><span class="range-track" style="--ticks: 4"><input id="lens-strength" type="range" min="0" max="100" value="55"></span></label>
+              <label class="range-row globe-only" hidden><span>Перспектива <output id="lens-strength-value">55%</output></span><span class="range-track" style="--ticks: 4"><input id="lens-strength" type="range" min="0" max="100" value="55"></span></label>
               <label class="switch-row"><span>Градусная сетка</span><input class="switch" id="graticule-enabled" type="checkbox"></label>
               <div class="sub-options" id="graticule-options" hidden>
                 <div class="segmented segmented--sub" id="graticule-step">
