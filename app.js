@@ -4,7 +4,7 @@
   const SVG_NS = "http://www.w3.org/2000/svg";
   const BASE_WIDTH = 1600;
   const RATIO_HEIGHTS = { "16:9": 900, "4:3": 1200 };
-  const GRID_SPACING = 16;
+  const GRID_SPACING = 24;
   const PROJECT_FORMAT = "map.kachkovenko.kontur";
   const PROJECT_VERSION = 1;
   const MAX_PROJECT_BYTES = 256 * 1024;
@@ -1933,11 +1933,11 @@
     const view = state.frame ? { zoom: 1, x: 0, y: 0 } : { zoom: state.viewZoom, x: state.panX, y: state.panY };
     artboard.style.transform = `translate(-50%, -50%) translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
     document.getElementById("zoom-level").textContent = `${Math.round((state.frame ? state.zoom : state.viewZoom) * 100)}%`;
-    // Graph paper follows the board: minor lines stay between 16 and 32 px (major every fourth), and the net is
-    // anchored to the viewport's centre, where the slide sits.
+    // The dot grid follows the board: spacing stays between 20 and 40 px, and the grid is anchored to the viewport's
+    // centre, where the slide sits.
     let spacing = GRID_SPACING * view.zoom;
-    while (spacing < 16) spacing *= 2;
-    while (spacing >= 32) spacing /= 2;
+    while (spacing < 20) spacing *= 2;
+    while (spacing >= 40) spacing /= 2;
     const originX = canvasViewport.offsetLeft + canvasViewport.clientWidth / 2 - stage.clientWidth / 2;
     const originY = canvasViewport.offsetTop + canvasViewport.clientHeight / 2 - stage.clientHeight / 2;
     stage.style.setProperty("--grid-size", `${spacing}px`);

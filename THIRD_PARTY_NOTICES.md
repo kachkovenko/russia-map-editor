@@ -4,7 +4,6 @@
 - topojson-client 3.1.0 — ISC License, https://github.com/topojson/topojson-client
 - PptxGenJS 4.0.1 — MIT License, https://github.com/gitbrent/PptxGenJS
 - JSZip 3.10.1 (bundled inside `lib/pptxgen.bundle.js`, also used directly for the ZIP export) — MIT License, https://github.com/Stuk/jszip
-- JetBrains Mono (interface font for numbers and technical labels, variable web subsets `fonts/jetbrains-mono-*.woff2` served by Google Fonts) — Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono), SIL Open Font License 1.1
 - Label fonts, SIL Open Font License 1.1 (web subsets `fonts/<name>-*.woff2` served by Google Fonts; unmodified originals and `OFL.txt` in `fonts/pack/<name>/`, redistributed with exports as permitted by the OFL — bundled, never sold on their own):
   - Inter — Copyright 2020 The Inter Project Authors (https://github.com/rsms/inter)
   - Golos Text (variable 400–700 web subsets; also the interface font) — Copyright 2019 The Golos Text Project Authors (https://github.com/googlefonts/golos-text)
