@@ -299,14 +299,10 @@ input[type="color"]::-moz-color-swatch { border: 1px solid rgba(23,23,23,.28); b
 .hex-input.is-invalid { color: var(--accent); border-bottom-color: var(--accent); }
 .select-row select { min-width: 0; width: 150px; height: 28px; padding: 0 26px 0 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--field) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='%236d6a64' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 6px center / 16px 16px; color: var(--ink); font-size: 12px; font-weight: 600; appearance: none; -webkit-appearance: none; cursor: pointer; }
 .select-row select:hover { border-color: rgba(23,23,23,.3); }
-.palette { display: flex; gap: 6px; margin-top: 10px; }
-.palette button { width: 22px; height: 22px; border: 1px solid rgba(23,23,23,.28); border-radius: 3px; background: linear-gradient(135deg, var(--a), var(--b)); cursor: pointer; }
-.palette.is-single button { background: var(--a); }
-.palette button:hover { border-color: var(--ink); }
 /* Range property: label and mono value above the track; `--ticks` draws N interval marks under integer scales. */
 .range-row { display: block; margin-top: 8px; color: var(--text-soft); font-size: 12px; }
 .range-row > span { display: flex; justify-content: space-between; margin-bottom: 4px; }
-.range-row output, .gradient-stops output { color: var(--muted); font: 11px var(--font-mono); font-variant-numeric: tabular-nums; }
+.range-row output { color: var(--muted); font: 11px var(--font-mono); font-variant-numeric: tabular-nums; }
 .range-track { position: relative; display: block; height: 20px; }
 input[type="range"] { position: relative; z-index: 1; width: 100%; height: 20px; margin: 0; appearance: none; outline: 0; background: transparent; }
 input[type="range"]::-webkit-slider-runnable-track { height: 2px; background: #d3d0c8; }
@@ -316,17 +312,17 @@ input[type="range"]::-moz-range-thumb { width: 8px; height: 8px; border: 2px sol
 input[type="range"]:focus-visible { outline: none; }
 input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 1px var(--ink), 0 0 0 4px var(--accent-soft); }
 .range-track[style*="--ticks"]::after { content: ""; position: absolute; left: 6px; right: 6px; top: 12px; height: 4px; background: repeating-linear-gradient(to right, rgba(23,23,23,.3) 0 1px, transparent 1px calc((100% - 1px) / var(--ticks))); pointer-events: none; }
-.gradient-stops { margin-top: 8px; color: var(--text-soft); font-size: 12px; }
-.gradient-stops > span { display: flex; justify-content: space-between; }
-.dual-range { --start: 0%; --end: 100%; position: relative; height: 20px; margin-top: 4px; }
-.dual-range::before, .dual-range__fill { content: ""; position: absolute; left: 0; right: 0; top: 9px; height: 2px; }
-.dual-range::before { background: #d3d0c8; }
-.dual-range__fill { left: var(--start); right: calc(100% - var(--end)); background: linear-gradient(90deg, var(--gradient-start, #3b5f8a), var(--gradient-end, #b9cad8)); }
-.dual-range input[type="range"] { position: absolute; inset: 0; width: 100%; height: 20px; margin: 0; pointer-events: none; background: transparent; }
-.dual-range input[type="range"]::-webkit-slider-runnable-track { background: transparent; }
-.dual-range input[type="range"]::-moz-range-track { background: transparent; }
-.dual-range input[type="range"]::-webkit-slider-thumb { width: 12px; height: 12px; pointer-events: auto; background: #fff; box-shadow: 0 0 0 1px var(--ink); }
-.dual-range input[type="range"]::-moz-range-thumb { width: 8px; height: 8px; pointer-events: auto; border: 2px solid #fff; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px var(--ink); }
+/* Gradient editor: a preview bar carrying its two stops (draggable swatches), plus rotate and swap tools. */
+.segmented--top { margin: 2px 0 10px; }
+.gradient-editor { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; }
+.gradient-bar { position: relative; flex: 1; height: 18px; padding: 0 8px; }
+.gradient-bar::before { content: ""; position: absolute; inset: 2px 8px; border-radius: 3px; background: var(--preview, #ccc); box-shadow: inset 0 0 0 1px rgba(23,23,23,.18); }
+.gradient-stop { position: absolute; top: 50%; width: 14px; height: 14px; padding: 0; border: 1.5px solid #fff; border-radius: 3px; background: var(--stop, #888); box-shadow: 0 0 0 1px var(--ink); transform: translate(-50%, -50%); cursor: ew-resize; touch-action: none; }
+.gradient-stop.is-selected { width: 17px; height: 17px; box-shadow: 0 0 0 1.5px var(--ink); z-index: 1; }
+.gradient-stop:focus-visible { outline-offset: 3px; }
+.gradient-tool { width: 26px; height: 26px; flex: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
+.gradient-tool:hover { color: var(--ink); background: var(--hover); }
+.gradient-tool svg { display: block; width: 15px; height: 15px; margin: auto; }
 .number-control { display: flex; align-items: center; height: 26px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--field); }
 .number-control input { min-width: 0; width: 44px; padding: 0 0 0 7px; border: 0; outline: 0; background: transparent; font: 11.5px var(--font-mono); font-variant-numeric: tabular-nums; }
 .number-control span { padding-right: 7px; color: var(--faint); font: 10px var(--font-mono); }

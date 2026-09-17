@@ -47,7 +47,7 @@
 
   const defaults = {
     tab: "regions", mapStyle: "atlas", dotPitch: 12, dotSize: 60, dotShape: "circle", dotLayout: "grid", dotField: false, dotFieldColor: "#d6d3cb", mosaicBorders: false,
-    gradient: true, fillStart: "#3b5f8a", fillEnd: "#b9cad8",
+    gradient: true, gradientType: "linear", fillStart: "#3b5f8a", fillEnd: "#b9cad8",
     angle: 25, gradientStart: 0, gradientEnd: 100, opacity: 1, selectedColor: "#ff5f46", borders: true, borderColor: "#ffffff",
     borderWidth: 0.8, regionLabels: false, regionLabelsMode: "all", regionLabelsCaps: false, regionFontSize: 11, cityLabels: true, cityFontSize: 12,
     labelFont: "inter", leaderLines: true, leaderColor: "#171717", labelHalo: true, labelHaloWidth: 1.5, labelHaloColor: "#ffffff",
@@ -57,7 +57,7 @@
   };
   const PROJECT_SETTING_KEYS = Object.freeze([
     "mapStyle", "dotPitch", "dotSize", "dotShape", "dotLayout", "dotField", "dotFieldColor", "mosaicBorders",
-    "gradient", "fillStart", "fillEnd", "angle", "gradientStart", "gradientEnd", "opacity", "selectedColor", "borders",
+    "gradient", "gradientType", "fillStart", "fillEnd", "angle", "gradientStart", "gradientEnd", "opacity", "selectedColor", "borders",
     "borderColor", "borderWidth", "regionLabels", "regionLabelsMode", "regionLabelsCaps", "regionFontSize", "cityLabels", "cityFontSize",
     "labelFont", "leaderLines", "leaderColor", "labelHalo", "labelHaloWidth", "labelHaloColor", "markerColor", "markerShape", "markerSize",
     "markerOutline", "markerOutlineColor",
@@ -76,7 +76,7 @@
     lensStrength: [0, 100], lensLon: [-180, 180], lensLat: [-85, 85]
   });
   const ENUM_SETTINGS = Object.freeze({
-    mapStyle: ["atlas", "mosaic"], dotShape: ["circle", "square", "rounded"], dotLayout: ["grid", "stagger"],
+    gradientType: ["linear", "radial"], mapStyle: ["atlas", "mosaic"], dotShape: ["circle", "square", "rounded"], dotLayout: ["grid", "stagger"],
     projection: ["conic", "mercator", "globe"], ratio: ["16:9", "4:3"], tab: ["regions", "cities", "selected"], regionLabelsMode: ["all", "selected"],
     markerShape: ["circle", "square", "diamond", "pin"], labelFont: Object.keys(LABEL_FONTS), graticuleStep: [10, 5]
   });
@@ -150,6 +150,8 @@
   const sampleCanvas = document.createElement("canvas");
   const sampleContext = sampleCanvas.getContext("2d", { willReadFrequently: true });
   let cursorGeoFrame = null;
+  // Which gradient stop the colour row edits (UI state, not part of the project).
+  let selectedStop = "start";
   // Candidate directions for a city label in order of preference: right, left, above, below, diagonals, then the in-betweens.
   const LABEL_DIRECTIONS = Object.freeze([0, 180, -90, 90, -45, -135, 45, 135, -22.5, 22.5, -157.5, 157.5, -67.5, 67.5, -112.5, 112.5].map(deg => {
     const a = deg * Math.PI / 180;
@@ -409,21 +411,26 @@
   // Cheap render: colours, strokes, visibility and label placement only.
   function restyle() {
     if (!path) return;
-    const gradient = d3.select("#land-gradient");
-    const r = state.angle * Math.PI / 180;
-    const cx = width / 2, cy = height / 2;
-    const reach = Math.max(width, height) * .7;
-    gradient.attr("x1", cx - Math.cos(r) * reach).attr("y1", cy - Math.sin(r) * reach)
-      .attr("x2", cx + Math.cos(r) * reach).attr("y2", cy + Math.sin(r) * reach);
-    d3.select("#gradient-start").attr("stop-color", state.fillStart).attr("offset", `${state.gradientStart}%`);
-    d3.select("#gradient-end").attr("stop-color", state.fillEnd).attr("offset", `${state.gradientEnd}%`);
+    // The gradient belongs to the map object: it spans the map's box along its direction (turning with the map,
+    // like PowerPoint's "rotate with shape"), so 0–100 % on the stop bar is the map's own extent.
+    const corners = Object.values(frameCorners());
+    const [gx, gy] = mapFrame.center;
+    const a = state.angle * Math.PI / 180 + mapFrame.angle;
+    const dx = Math.cos(a), dy = Math.sin(a);
+    const along = corners.map(([x, y]) => (x - gx) * dx + (y - gy) * dy);
+    const lo = Math.min(...along), hi = Math.max(...along);
+    d3.select("#land-gradient").attr("x1", gx + dx * lo).attr("y1", gy + dy * lo).attr("x2", gx + dx * hi).attr("y2", gy + dy * hi);
+    d3.select("#land-gradient-radial").attr("cx", gx).attr("cy", gy)
+      .attr("r", Math.max(1, ...corners.map(([x, y]) => Math.hypot(x - gx, y - gy))));
+    svg.selectAll(".land-stop-start").attr("stop-color", state.fillStart).attr("offset", `${state.gradientStart}%`);
+    svg.selectAll(".land-stop-end").attr("stop-color", state.fillEnd).attr("offset", `${state.gradientEnd}%`);
 
     d3.select("#export-background")
       .attr("x", 0).attr("y", 0).attr("width", width).attr("height", height)
       .attr("fill", state.background).attr("fill-opacity", state.transparent ? 0 : 1)
       .attr("display", state.frame ? null : "none");
 
-    const landFill = state.gradient ? "url(#land-gradient)" : state.fillStart;
+    const landFill = state.gradient ? (state.gradientType === "radial" ? "url(#land-gradient-radial)" : "url(#land-gradient)") : state.fillStart;
     const mosaic = state.mapStyle === "mosaic";
     const borders = bordersOn();
     // In the mosaic the polygons stay as invisible hit areas (and carry the borders); the dots paint the fill.
@@ -1558,12 +1565,34 @@
     }));
     bindCheck("dot-field", "dotField", updateStyleControls);
     bindColor("dot-field-color", "dotFieldColor");
-    bindCheck("gradient-enabled", "gradient", updateGradientControls);
+    document.querySelectorAll("[data-fill-mode]").forEach(button => button.addEventListener("click", () => {
+      const gradient = button.dataset.fillMode === "gradient";
+      if (state.gradient === gradient) return;
+      state.gradient = gradient;
+      updateGradientControls(); restyle(); saveState();
+    }));
     bindColor("fill-start", "fillStart");
-    bindColor("fill-end", "fillEnd");
-    bindRange("gradient-angle", "angle", "gradient-angle-value", v => `${v}°`, Number);
-    bindGradientStops();
-    bindRange("fill-opacity", "opacity", "opacity-value", v => `${v}%`, v => Number(v) / 100);
+    // The stop colour row edits whichever stop is selected on the bar.
+    bindColorInput("gradient-stop-color", () => selectedStop === "start" ? state.fillStart : state.fillEnd, value => {
+      state[selectedStop === "start" ? "fillStart" : "fillEnd"] = value;
+      updateGradientControls(); restyle(); saveState(true);
+    });
+    document.getElementById("gradient-type").addEventListener("change", event => {
+      state.gradientType = event.target.value;
+      updateGradientControls(); restyle(); saveState();
+    });
+    bindGradientBar();
+    document.getElementById("gradient-rotate").addEventListener("click", () => {
+      state.angle = (state.angle + 90) % 360;
+      updateGradientControls(); restyle(); saveState();
+    });
+    document.getElementById("gradient-swap").addEventListener("click", () => {
+      [state.fillStart, state.fillEnd] = [state.fillEnd, state.fillStart];
+      syncColorField("fill-start", state.fillStart);
+      updateGradientControls(); restyle(); saveState();
+    });
+    bindNumber("gradient-angle", value => { state.angle = clamp(Math.round(value), 0, 360); }, () => state.angle);
+    bindNumber("fill-opacity", value => { state.opacity = clamp(Math.round(value), 10, 100) / 100; }, () => Math.round(state.opacity * 100));
     bindColor("selected-color", "selectedColor");
     document.getElementById("borders-enabled").addEventListener("change", event => {
       state[state.mapStyle === "mosaic" ? "mosaicBorders" : "borders"] = event.target.checked;
@@ -1617,10 +1646,6 @@
       applyLabelFont(); updateFontCompanionOption(); restyle(); saveState();
     });
 
-    document.querySelectorAll("[data-palette]").forEach(button => button.addEventListener("click", () => {
-      [state.fillStart, state.fillEnd] = button.dataset.palette.split(",").map(v => v.toLowerCase());
-      syncControls(); restyle(); saveState();
-    }));
     document.querySelectorAll("[data-projection]").forEach(button => button.addEventListener("click", () => setProjection(button.dataset.projection)));
     document.querySelectorAll("[data-quick-projection]").forEach(button => button.addEventListener("click", () => setProjection(button.dataset.quickProjection)));
     document.querySelectorAll("[data-ratio]").forEach(button => button.addEventListener("click", () => {
@@ -1988,34 +2013,93 @@
     });
   }
 
-  function bindGradientStops() {
-    const start = document.getElementById("gradient-start-position");
-    const end = document.getElementById("gradient-end-position");
-    start.addEventListener("input", event => {
-      state.gradientStart = Math.min(Number(event.target.value), state.gradientEnd);
-      event.target.value = state.gradientStart;
+  // Numeric field: applies while typing (clamped), tidies the displayed value on blur/Enter.
+  function bindNumber(id, apply, current) {
+    const input = document.getElementById(id);
+    input.addEventListener("input", () => {
+      const value = Number(input.value);
+      if (!Number.isFinite(value) || input.value.trim() === "") return;
+      apply(value);
       updateGradientControls(); restyle(); saveState(true);
     });
-    end.addEventListener("input", event => {
-      state.gradientEnd = Math.max(Number(event.target.value), state.gradientStart);
-      event.target.value = state.gradientEnd;
-      updateGradientControls(); restyle(); saveState(true);
+    const tidy = () => { input.value = current(); };
+    input.addEventListener("blur", tidy);
+    input.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); tidy(); input.blur(); } });
+  }
+
+  // Gradient bar as in Figma: the two stops are dragged along the bar (arrow keys nudge the focused one), a click
+  // selects the stop whose colour the row below edits.
+  function bindGradientBar() {
+    const bar = document.getElementById("gradient-bar");
+    let drag = null;
+    const position = which => which === "start" ? state.gradientStart : state.gradientEnd;
+    bar.querySelectorAll(".gradient-stop").forEach(stop => {
+      const which = stop.dataset.stop;
+      stop.addEventListener("pointerdown", event => {
+        if (event.button !== 0 && event.pointerType === "mouse") return;
+        event.preventDefault();
+        selectedStop = which;
+        updateGradientControls();
+        drag = { pointerId: event.pointerId };
+        stop.setPointerCapture(event.pointerId);
+        stop.focus({ preventScroll: true });
+      });
+      stop.addEventListener("pointermove", event => {
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        const rect = bar.getBoundingClientRect();
+        setStopPosition(which, Math.round((event.clientX - rect.left - 8) / Math.max(rect.width - 16, 1) * 100));
+      });
+      const end = event => { if (drag && drag.pointerId === event.pointerId) { drag = null; saveState(); } };
+      stop.addEventListener("pointerup", end);
+      stop.addEventListener("pointercancel", end);
+      stop.addEventListener("keydown", event => {
+        const step = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
+        if (!step) return;
+        event.preventDefault();
+        selectedStop = which;
+        setStopPosition(which, position(which) + step * (event.shiftKey ? 10 : 1));
+      });
     });
   }
 
+  function setStopPosition(which, percent) {
+    if (which === "start") state.gradientStart = clamp(percent, 0, state.gradientEnd);
+    else state.gradientEnd = clamp(percent, state.gradientStart, 100);
+    updateGradientControls(); restyle(); saveState(true);
+  }
+
+  function syncColorField(id, value) {
+    const input = document.getElementById(id);
+    input.value = value;
+    const textInput = document.querySelector(`[data-color-text-for="${id}"]`);
+    if (!textInput) return;
+    textInput.value = value.toUpperCase();
+    textInput.classList.remove("is-invalid");
+    textInput.setAttribute("aria-invalid", "false");
+  }
+
   function updateGradientControls() {
-    const enabled = state.gradient;
-    document.getElementById("fill-end-control").hidden = !enabled;
-    document.getElementById("gradient-options").hidden = !enabled;
-    document.getElementById("fill-color-grid").classList.toggle("is-single", !enabled);
-    document.querySelector(".palette").classList.toggle("is-single", !enabled);
-    document.getElementById("fill-start-label").textContent = enabled ? "Начало" : "Цвет";
-    const track = document.getElementById("gradient-stops-track");
-    track.style.setProperty("--start", `${state.gradientStart}%`);
-    track.style.setProperty("--end", `${state.gradientEnd}%`);
-    track.style.setProperty("--gradient-start", state.fillStart);
-    track.style.setProperty("--gradient-end", state.fillEnd);
-    document.getElementById("gradient-stops-value").textContent = `${state.gradientStart}% — ${state.gradientEnd}%`;
+    const gradient = state.gradient;
+    document.querySelectorAll("[data-fill-mode]").forEach(el => el.classList.toggle("is-active", (el.dataset.fillMode === "gradient") === gradient));
+    document.getElementById("solid-color-row").hidden = gradient;
+    document.getElementById("gradient-options").hidden = !gradient;
+    document.getElementById("gradient-angle-row").hidden = state.gradientType !== "linear";
+    document.getElementById("gradient-type").value = state.gradientType;
+    if (document.activeElement !== document.getElementById("gradient-angle")) document.getElementById("gradient-angle").value = Math.round(state.angle);
+    if (document.activeElement !== document.getElementById("fill-opacity")) document.getElementById("fill-opacity").value = Math.round(state.opacity * 100);
+    const bar = document.getElementById("gradient-bar");
+    bar.style.setProperty("--preview", `linear-gradient(90deg, ${state.fillStart} ${state.gradientStart}%, ${state.fillEnd} ${state.gradientEnd}%)`);
+    bar.querySelectorAll(".gradient-stop").forEach(stop => {
+      const start = stop.dataset.stop === "start";
+      // Stops travel the inner track (the bar's 8 px side padding keeps the end stops on the bar).
+      stop.style.left = `calc(8px + (100% - 16px) * ${(start ? state.gradientStart : state.gradientEnd) / 100})`;
+      stop.style.setProperty("--stop", start ? state.fillStart : state.fillEnd);
+      stop.classList.toggle("is-selected", stop.dataset.stop === selectedStop);
+      stop.setAttribute("aria-pressed", String(stop.dataset.stop === selectedStop));
+    });
+    document.getElementById("gradient-stop-label").textContent = selectedStop === "start" ? "Начало" : "Конец";
+    document.getElementById("gradient-stop-position").textContent = `${selectedStop === "start" ? state.gradientStart : state.gradientEnd}%`;
+    syncColorField("gradient-stop-color", selectedStop === "start" ? state.fillStart : state.fillEnd);
   }
 
   // The font can only be attached when it is one of the bundled ones; system fonts need no archive.
@@ -2084,9 +2168,8 @@
   function syncControls() {
     const pairs = {
       "dot-pitch": state.dotPitch, "dot-size": state.dotSize, "dot-field": state.dotField, "dot-field-color": state.dotFieldColor,
-      "gradient-enabled": state.gradient, "fill-start": state.fillStart, "fill-end": state.fillEnd,
-      "gradient-angle": state.angle, "gradient-start-position": state.gradientStart, "gradient-end-position": state.gradientEnd,
-      "fill-opacity": Math.round(state.opacity * 100), "selected-color": state.selectedColor,
+      "fill-start": state.fillStart, "gradient-type": state.gradientType,
+      "gradient-angle": Math.round(state.angle), "fill-opacity": Math.round(state.opacity * 100), "selected-color": state.selectedColor,
       "border-color": state.borderColor, "border-width": state.borderWidth,
       "region-labels-enabled": state.regionLabels, "region-labels-caps": state.regionLabelsCaps, "city-labels-enabled": state.cityLabels, "marker-color": state.markerColor,
       "region-font-size": state.regionFontSize, "city-font-size": state.cityFontSize, "leader-lines": state.leaderLines,
@@ -2109,9 +2192,6 @@
       textInput.setAttribute("aria-invalid", "false");
     });
     document.getElementById("dot-size-value").textContent = `${state.dotSize}%`;
-    document.getElementById("gradient-angle-value").textContent = `${state.angle}°`;
-    document.getElementById("gradient-stops-value").textContent = `${state.gradientStart}% — ${state.gradientEnd}%`;
-    document.getElementById("opacity-value").textContent = `${Math.round(state.opacity * 100)}%`;
     document.getElementById("marker-size-value").textContent = state.markerSize;
     document.getElementById("region-font-size-value").textContent = `${state.regionFontSize} px`;
     document.getElementById("city-font-size-value").textContent = `${state.cityFontSize} px`;

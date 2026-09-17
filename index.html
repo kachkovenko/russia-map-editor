@@ -115,9 +115,13 @@
             <svg id="map" role="img" aria-label="Редактируемая карта России" xmlns="http://www.w3.org/2000/svg">
               <defs>
                 <linearGradient id="land-gradient" gradientUnits="userSpaceOnUse">
-                  <stop id="gradient-start" offset="0%"></stop>
-                  <stop id="gradient-end" offset="100%"></stop>
+                  <stop class="land-stop-start" offset="0%"></stop>
+                  <stop class="land-stop-end" offset="100%"></stop>
                 </linearGradient>
+                <radialGradient id="land-gradient-radial" gradientUnits="userSpaceOnUse">
+                  <stop class="land-stop-start" offset="0%"></stop>
+                  <stop class="land-stop-end" offset="100%"></stop>
+                </radialGradient>
                 <filter id="marker-shadow" x="-50%" y="-50%" width="200%" height="200%">
                   <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity=".25"></feDropShadow>
                 </filter>
@@ -231,40 +235,31 @@
           <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-fill"><span>Заливка</span><span class="section-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
           <div class="section-body" id="section-fill">
             <div class="section-body__inner">
-              <label class="switch-row">
-                <span>Градиент</span>
-                <input class="switch" id="gradient-enabled" type="checkbox" checked>
-              </label>
-              <div id="fill-color-grid">
-                <label class="color-row"><span id="fill-start-label">Начало</span><span class="swatch"><input id="fill-start" type="color" value="#3b5f8a"><input class="hex-input" data-color-text-for="fill-start" value="#3B5F8A" maxlength="7" aria-label="HEX-код первого цвета" spellcheck="false"></span></label>
-                <label class="color-row" id="fill-end-control"><span>Конец</span><span class="swatch"><input id="fill-end" type="color" value="#b9cad8"><input class="hex-input" data-color-text-for="fill-end" value="#B9CAD8" maxlength="7" aria-label="HEX-код второго цвета" spellcheck="false"></span></label>
+              <div class="segmented segmented--top" role="group" aria-label="Тип заливки">
+                <button type="button" class="is-active" data-fill-mode="solid">Сплошная</button>
+                <button type="button" data-fill-mode="gradient">Градиент</button>
               </div>
+              <label class="color-row" id="solid-color-row"><span>Цвет</span><span class="swatch"><input id="fill-start" type="color" value="#3b5f8a"><input class="hex-input" data-color-text-for="fill-start" value="#3B5F8A" maxlength="7" aria-label="HEX-код цвета заливки" spellcheck="false"></span></label>
               <div id="gradient-options">
-                <label class="range-row">
-                  <span>Направление <output id="gradient-angle-value">25°</output></span>
-                  <span class="range-track" style="--ticks: 8"><input id="gradient-angle" type="range" min="0" max="360" value="25"></span>
+                <label class="select-row"><span>Тип</span>
+                  <select id="gradient-type">
+                    <option value="linear">Линейный</option>
+                    <option value="radial">Радиальный</option>
+                  </select>
                 </label>
-                <div class="gradient-stops">
-                  <span>Положение цветов <output id="gradient-stops-value">0% — 100%</output></span>
-                  <div class="dual-range" id="gradient-stops-track">
-                    <div class="dual-range__fill"></div>
-                    <input id="gradient-start-position" type="range" min="0" max="100" value="0" aria-label="Положение первого цвета">
-                    <input id="gradient-end-position" type="range" min="0" max="100" value="100" aria-label="Положение второго цвета">
+                <div class="gradient-editor">
+                  <div class="gradient-bar" id="gradient-bar" role="group" aria-label="Цветовые точки градиента">
+                    <button type="button" class="gradient-stop is-selected" data-stop="start" aria-label="Начало градиента" aria-pressed="true"></button>
+                    <button type="button" class="gradient-stop" data-stop="end" aria-label="Конец градиента" aria-pressed="false"></button>
                   </div>
+                  <button type="button" class="icon-button gradient-tool" id="gradient-rotate" title="Повернуть на 90°" aria-label="Повернуть градиент на 90°"><svg viewBox="-8 -8 16 16" aria-hidden="true"><path d="M-4.4,-1.4A5,5 0 1 1 -2,4.2M-4.4,-5v3.6h3.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                  <button type="button" class="icon-button gradient-tool" id="gradient-swap" title="Поменять цвета местами" aria-label="Поменять цвета градиента местами"><svg viewBox="-8 -8 16 16" aria-hidden="true"><path d="M-5.5,-2.5h11l-3,-3M5.5,2.5h-11l3,3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
                 </div>
+                <label class="color-row"><span><span id="gradient-stop-label">Начало</span> <output class="mono" id="gradient-stop-position">0%</output></span><span class="swatch"><input id="gradient-stop-color" type="color" value="#3b5f8a"><input class="hex-input" data-color-text-for="gradient-stop-color" value="#3B5F8A" maxlength="7" aria-label="HEX-код цвета точки градиента" spellcheck="false"></span></label>
+                <label class="field-row" id="gradient-angle-row"><span>Угол</span><span class="number-control"><input id="gradient-angle" type="number" min="0" max="360" step="1" value="25"><span>°</span></span></label>
               </div>
-              <label class="range-row">
-                <span>Прозрачность <output id="opacity-value">100%</output></span>
-                <span class="range-track" style="--ticks: 9"><input id="fill-opacity" type="range" min="10" max="100" value="100"></span>
-              </label>
+              <label class="field-row"><span>Прозрачность</span><span class="number-control"><input id="fill-opacity" type="number" min="10" max="100" step="5" value="100"><span>%</span></span></label>
               <label class="color-row"><span>Выделение</span><span class="swatch"><input id="selected-color" type="color" value="#ff5f46"><input class="hex-input" data-color-text-for="selected-color" value="#FF5F46" maxlength="7" aria-label="HEX-код цвета выделения" spellcheck="false"></span></label>
-              <div class="palette" aria-label="Готовые палитры">
-                <button data-palette="#3B5F8A,#B9CAD8" style="--a:#3B5F8A;--b:#B9CAD8" aria-label="Чернильно-синий"></button>
-                <button data-palette="#F97316,#FACC15" style="--a:#F97316;--b:#FACC15" aria-label="Оранжевый и жёлтый"></button>
-                <button data-palette="#0F172A,#475569" style="--a:#0F172A;--b:#475569" aria-label="Графитовый"></button>
-                <button data-palette="#2563EB,#7DD3FC" style="--a:#2563EB;--b:#7DD3FC" aria-label="Синий и голубой"></button>
-                <button data-palette="#E11D48,#F9A8D4" style="--a:#E11D48;--b:#F9A8D4" aria-label="Розовый"></button>
-              </div>
             </div>
           </div>
         </section>
