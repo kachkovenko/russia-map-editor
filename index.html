@@ -189,11 +189,19 @@
       </main>
 
       <aside class="inspector panel-column" id="inspector-panel">
+        <div class="inspector-header">
         <div class="panel-head">
           <div><p class="panel-eyebrow">Свойства</p><h2>Настройки карты</h2></div>
           <button class="icon-button close-mobile" data-close-panel aria-label="Закрыть">×</button>
         </div>
+        <div class="inspector-tabs" role="tablist" aria-label="Раздел настроек">
+          <button type="button" id="inspector-tab-appearance" role="tab" aria-selected="true" aria-controls="inspector-appearance" data-inspector-tab="appearance">Карта</button>
+          <button type="button" id="inspector-tab-labels" role="tab" aria-selected="false" aria-controls="inspector-labels" data-inspector-tab="labels" tabindex="-1">Подписи</button>
+          <button type="button" id="inspector-tab-layout" role="tab" aria-selected="false" aria-controls="inspector-layout" data-inspector-tab="layout" tabindex="-1">Слайд</button>
+        </div>
+        </div>
 
+        <div id="inspector-appearance" class="inspector-pane" role="tabpanel" aria-labelledby="inspector-tab-appearance">
         <section class="control-section" data-section="style">
           <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-style"><span>Стиль</span><span class="section-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
           <div class="section-body" id="section-style">
@@ -263,15 +271,24 @@
           </div>
         </section>
 
-        <section class="control-section" data-section="labels">
-          <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-labels"><span>Границы и подписи</span><span class="section-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
-          <div class="section-body" id="section-labels">
+        <section class="control-section" data-section="borders">
+          <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-borders"><span>Границы</span><span class="section-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
+          <div class="section-body" id="section-borders">
             <div class="section-body__inner">
               <label class="switch-row"><span>Границы регионов</span><input class="switch" id="borders-enabled" type="checkbox" checked></label>
               <div class="sub-options" id="border-controls">
                 <label class="color-row"><span>Цвет границ</span><span class="swatch"><input id="border-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="border-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код границ" spellcheck="false"></span></label>
                 <label class="field-row"><span>Толщина</span><span class="number-control"><input id="border-width" type="number" min="0.2" max="4" step="0.2" value="0.8"><span>px</span></span></label>
               </div>
+            </div>
+          </div>
+        </section>
+        </div>
+        <div id="inspector-labels" class="inspector-pane" role="tabpanel" aria-labelledby="inspector-tab-labels" hidden>
+        <section class="control-section" data-section="labels">
+          <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-labels"><span>Подписи и маркеры</span><span class="section-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
+          <div class="section-body" id="section-labels">
+            <div class="section-body__inner">
               <label class="select-row"><span>Шрифт подписей</span>
                 <select id="label-font">
                   <optgroup label="Встроенные">
@@ -327,6 +344,8 @@
           </div>
         </section>
 
+        </div>
+        <div id="inspector-layout" class="inspector-pane" role="tabpanel" aria-labelledby="inspector-tab-layout" hidden>
         <section class="control-section" data-section="projection">
           <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-projection"><span>Проекция</span><span class="section-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
           <div class="section-body" id="section-projection">
@@ -367,6 +386,7 @@
             </div>
           </div>
         </section>
+        </div>
       </aside>
     </div>
   </div>
