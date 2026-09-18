@@ -141,6 +141,8 @@
                 <g id="regions-layer"></g>
                 <path id="country-outline" class="country-outline"></path>
                 <path id="graticule" class="graticule" display="none"></path>
+                <g id="routes-layer" pointer-events="none"></g>
+                <g id="region-label-backgrounds" pointer-events="none"></g>
                 <g id="region-labels"></g>
                 <g id="cities-layer"></g>
                 <g id="compass" class="compass" display="none"></g>
@@ -279,6 +281,10 @@
           <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-labels"><span>Подписи и маркеры</span><span class="section-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
           <div class="section-body" id="section-labels">
             <div class="section-body__inner">
+              <label class="select-row"><span>Оформление</span><select id="label-style"><option value="plain">Текст</option><option value="pill">На подложке</option></select></label>
+              <div id="label-pill-options" hidden>
+                <label class="color-row"><span>Цвет подложки</span><span class="swatch"><input id="label-background" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="label-background" value="#FFFFFF" maxlength="7" aria-label="HEX-код подложки подписи" spellcheck="false"></span></label>
+              </div>
               <label class="select-row"><span>Шрифт подписей</span>
                 <select id="label-font">
                   <optgroup label="Встроенные">
@@ -334,6 +340,23 @@
           </div>
         </section>
 
+        <section class="control-section" data-section="routes">
+          <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-routes"><span>Связи городов</span><span class="section-chevron" aria-hidden="true">⌄</span></button>
+          <div class="section-body" id="section-routes"><div class="section-body__inner">
+            <label class="select-row"><span>Схема</span><select id="route-mode"><option value="off">Без связей</option><option value="hub">Из одного центра</option><option value="network">Случайная сеть</option><option value="chain">Цепочка</option></select></label>
+            <div id="route-options" hidden>
+              <label class="select-row" id="route-hub-row"><span>Центр</span><select id="route-hub" aria-label="Центральный город"></select></label>
+              <button class="button button--secondary" id="route-shuffle" type="button" hidden>Перестроить сеть</button>
+              <label class="select-row"><span>Линия</span><select id="route-style"><option value="solid">Сплошная</option><option value="dashed">Штриховая</option><option value="dotted">Пунктирная</option></select></label>
+              <label class="color-row"><span>Цвет линии</span><span class="swatch"><input id="route-color" type="color" value="#4263eb"><input class="hex-input" data-color-text-for="route-color" value="#4263EB" maxlength="7" aria-label="HEX-код связей" spellcheck="false"></span></label>
+              <label class="range-row"><span>Толщина <output id="route-width-value">2 px</output></span><input id="route-width" type="range" min="0.5" max="8" step="0.5" value="2"></label>
+              <label class="range-row"><span>Изгиб <output id="route-bend-value">25%</output></span><input id="route-bend" type="range" min="0" max="70" value="25"></label>
+              <p class="microcopy" id="route-hint"></p>
+              <ol class="route-order" id="route-order" aria-label="Порядок городов в цепочке" hidden></ol>
+            </div>
+          </div></div>
+        </section>
+
         <section class="control-section" data-section="projection">
           <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-projection"><span>Проекция</span><span class="section-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
           <div class="section-body" id="section-projection">
@@ -385,6 +408,7 @@
   <script src="lib/pptxgen.bundle.js"></script>
   <script src="data/regions.topojson.js"></script>
   <script src="data/cities.js"></script>
+  <script src="lib/map-routes.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

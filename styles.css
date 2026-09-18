@@ -364,6 +364,11 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px 
 .shape-picker button:hover { color: var(--ink); }
 .shape-picker button.is-active { color: var(--accent); background: var(--panel); box-shadow: 0 1px 3px rgba(28,39,64,.12), 0 0 0 1px rgba(28,39,64,.04); }
 .microcopy { margin: 8px 0 0; color: var(--faint); font-size: 11.5px; line-height: 1.45; }
+.route-order { list-style: none; padding: 0; margin: 12px 0 0; max-height: 220px; overflow-y: auto; }
+.route-order li { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid var(--line-soft); }
+.route-order li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+.route-order button { width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); cursor: pointer; }
+.route-order button:disabled { opacity: .3; cursor: default; }
 #city-labels-hint { margin: 6px 0 2px; }
 .projection-help { min-height: 23px; }
 .control-section:last-of-type { border-bottom: 1px solid var(--line); }

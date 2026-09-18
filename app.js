@@ -46,6 +46,7 @@
   });
 
   const defaults = {
+    labelStyle: "plain", labelBackground: "#ffffff", routeMode: "off", routeStyle: "solid", routeColor: "#4263eb", routeWidth: 2, routeBend: 25, routeHub: "", routeSeed: 1,
     tab: "regions", mapStyle: "atlas", dotPitch: 12, dotSize: 60, dotShape: "circle", dotLayout: "grid", dotField: false, dotFieldColor: "#d6d3cb", mosaicBorders: false,
     gradient: true, gradientType: "linear", fillStart: "#3b5f8a", fillEnd: "#b9cad8",
     angle: 25, gradientStart: 0, gradientEnd: 100, opacity: 1, selectedColor: "#ff5f46", borders: true, borderColor: "#ffffff",
@@ -56,6 +57,7 @@
     background: "#ffffff", transparent: false, zoom: 1, mapX: 0, mapY: 0, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, lensLon: 91.06, lensLat: 65.36, projectCompanion: true, fontCompanion: true
   };
   const PROJECT_SETTING_KEYS = Object.freeze([
+    "labelStyle", "labelBackground", "routeMode", "routeStyle", "routeColor", "routeWidth", "routeBend", "routeHub", "routeSeed",
     "mapStyle", "dotPitch", "dotSize", "dotShape", "dotLayout", "dotField", "dotFieldColor", "mosaicBorders",
     "gradient", "gradientType", "fillStart", "fillEnd", "angle", "gradientStart", "gradientEnd", "opacity", "selectedColor", "borders",
     "borderColor", "borderWidth", "regionLabels", "regionLabelsMode", "regionLabelsCaps", "regionFontSize", "cityLabels", "cityFontSize",
@@ -69,6 +71,7 @@
   const BOOLEAN_SETTINGS = new Set(["dotField", "mosaicBorders", "gradient", "borders", "regionLabels", "regionLabelsCaps", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "graticule", "compass", "frame", "transparent", "projectCompanion", "fontCompanion"]);
   const COLOR_SETTINGS = new Set(["dotFieldColor", "fillStart", "fillEnd", "selectedColor", "borderColor", "leaderColor", "labelHaloColor", "markerColor", "markerOutlineColor", "graticuleColor", "background"]);
   const NUMBER_RANGES = Object.freeze({
+    routeWidth: [.5, 8], routeBend: [0, 70], routeSeed: [1, 1000000],
     dotPitch: [6, 32], dotSize: [30, 100],
     angle: [0, 360], gradientStart: [0, 100], gradientEnd: [0, 100], opacity: [.1, 1], borderWidth: [.2, 4], markerSize: [3, 12],
     regionFontSize: [8, 28], cityFontSize: [8, 28], labelHaloWidth: [.5, 4],
@@ -76,6 +79,7 @@
     lensStrength: [0, 100], lensLon: [-180, 180], lensLat: [-85, 85]
   });
   const ENUM_SETTINGS = Object.freeze({
+    labelStyle: ["plain", "pill"], routeMode: ["off", "hub", "network", "chain"], routeStyle: ["solid", "dashed", "dotted"],
     gradientType: ["linear", "radial"], mapStyle: ["atlas", "mosaic"], dotShape: ["circle", "square", "rounded"], dotLayout: ["grid", "stagger"],
     projection: ["conic", "mercator", "globe"], ratio: ["16:9", "4:3"], tab: ["regions", "cities", "selected"], regionLabelsMode: ["all", "selected"],
     markerShape: ["circle", "square", "diamond", "pin"], labelFont: Object.keys(LABEL_FONTS), graticuleStep: [10, 5]
@@ -135,6 +139,8 @@
   const activePointers = new Map();
   const history = { past: [], future: [], current: null, burst: null };
   function mapFont() { return LABEL_FONTS[state.labelFont].stack; }
+  COLOR_SETTINGS.add("labelBackground");
+  COLOR_SETTINGS.add("routeColor");
   const measureContext = document.createElement("canvas").getContext("2d");
   const measureCache = new Map();
   let shownRegionLabels = new Set();
@@ -206,6 +212,7 @@
     cityGroups.append("circle").attr("class", "city-marker__ring");
     cityGroups.append("path").attr("class", "city-marker");
     cityGroups.append("circle").attr("class", "city-marker__eye");
+    cityGroups.append("rect").attr("class", "city-label-background").attr("pointer-events", "none");
     cityGroups.append("text").attr("class", "city-label").text(d => d.name)
       .on("pointerdown", startLabelDrag)
       .on("click", event => event.stopPropagation())
@@ -373,6 +380,38 @@
     return d3.geoProjection(raw).clipAngle(Math.acos(1 / P) * 180 / Math.PI - .1);
   }
 
+  function updateRouteControls() {
+    const selected = [...state.selectedCities].map(id => cities.find(c => c.id === id)).filter(Boolean);
+    const hub = document.getElementById("route-hub");
+    hub.replaceChildren(...selected.slice(0, 150).map(city => new Option(city.name, city.id)));
+    hub.value = selected.slice(0, 150).some(c => c.id === state.routeHub) ? state.routeHub : selected[0]?.id || "";
+    document.getElementById("route-options").hidden = state.routeMode === "off";
+    document.getElementById("route-hub-row").hidden = state.routeMode !== "hub";
+    document.getElementById("route-shuffle").hidden = state.routeMode !== "network";
+    const order = document.getElementById("route-order");
+    order.hidden = state.routeMode !== "chain";
+    order.innerHTML = selected.slice(0, 150).map((c, i) => `<li><span>${i + 1}. ${escapeHtml(c.name)}</span><button type="button" data-id="${escapeHtml(c.id)}" data-route-move="-1" aria-label="${escapeHtml(c.name)}: выше" ${i === 0 ? "disabled" : ""}>↑</button><button type="button" data-id="${escapeHtml(c.id)}" data-route-move="1" aria-label="${escapeHtml(c.name)}: ниже" ${i === Math.min(selected.length, 150) - 1 ? "disabled" : ""}>↓</button></li>`).join("");
+    document.getElementById("route-hint").textContent = selected.length < 2 ? "Выберите минимум два города в библиотеке." : selected.length > 150 ? "Связи показаны для первых 150 выбранных городов." : state.routeMode === "chain" ? "Порядок выбора городов. Стрелками можно изменить маршрут." : "Связи между выбранными городами. Схема сохраняется в JSON.";
+  }
+
+  function renderRoutes() {
+    const byId = new Map(cities.map(c => [c.id, c]));
+    const edges = MapRoutes.edges([...state.selectedCities], state.routeMode, state.routeHub, state.routeSeed);
+    const line = ([a, b]) => {
+      const from = byId.get(a), to = byId.get(b);
+      if (!from || !to) return null;
+      // Spherical paths are clipped at the horizon and the antimeridian by D3.
+      if (state.projection === "globe" || state.mapScope === "world") return path({type:"LineString", coordinates:[[from.lon, from.lat], [to.lon, to.lat]]});
+      if (!from.point || !to.point) return null;
+      const [x1, y1] = from.point, [x2, y2] = to.point, bend = state.routeBend / 100;
+      return `M${x1},${y1}Q${(x1 + x2) / 2 + (y2 - y1) * bend},${(y1 + y2) / 2 - (x2 - x1) * bend} ${x2},${y2}`;
+    };
+    d3.select("#routes-layer").selectAll("path").data(edges, d => d.join("|")).join("path")
+      .attr("d", line).attr("fill", "none").attr("stroke", state.routeColor).attr("stroke-width", state.routeWidth)
+      .attr("stroke-opacity", .85).attr("stroke-linecap", "round")
+      .attr("stroke-dasharray", state.routeStyle === "dotted" ? `0 ${state.routeWidth * 3}` : state.routeStyle === "dashed" ? `${state.routeWidth * 4} ${state.routeWidth * 3}` : null);
+  }
+
   function mapPlacement() {
     return state.frame ? { zoom: state.zoom, x: state.mapX, y: state.mapY } : { zoom: 1, x: 0, y: 0 };
   }
@@ -446,7 +485,7 @@
     svg.classed("is-mosaic", mosaic);
     prepareDots();
 
-    const halo = state.labelHalo ? state.labelHaloWidth * 2 : 0;
+    const halo = state.labelHalo && state.labelStyle === "plain" ? state.labelHaloWidth * 2 : 0;
     const haloStroke = halo ? state.labelHaloColor : "none";
     shownRegionLabels = layoutLabels();
     labelGroups
@@ -489,7 +528,19 @@
         .attr("stroke", haloStroke)
         .attr("stroke-width", halo)
         .classed("is-manual", !!state.cityLabelOffsets[d.id]);
+      const rect = labelRect([0, 0], d.label, textWidth(d.name, state.cityFontSize), state.cityFontSize);
+      group.select(".city-label-background").attr("display", state.cityLabels && state.labelStyle === "pill" ? null : "none")
+        .attr("x", rect.x1).attr("y", rect.y1).attr("width", rect.x2 - rect.x1).attr("height", rect.y2 - rect.y1)
+        .attr("rx", (rect.y2 - rect.y1) / 2).attr("fill", state.labelBackground).attr("fill-opacity", .95);
     });
+
+    d3.select("#region-label-backgrounds").selectAll("rect")
+      .data(state.labelStyle === "pill" ? features.filter(d => shownRegionLabels.has(d.properties.id)) : [], d => d.properties.id)
+      .join("rect").attr("class", "region-label-background")
+      .attr("x", d => d.centroid[0] - d.labelWidth / 2 - 8).attr("y", d => d.centroid[1] - state.regionFontSize * .75 - 5)
+      .attr("width", d => d.labelWidth + 16).attr("height", state.regionFontSize + 10).attr("rx", (state.regionFontSize + 10) / 2)
+      .attr("fill", state.labelBackground).attr("fill-opacity", .95);
+    renderRoutes();
 
     emitDots(landFill);
     updateGraticule();
@@ -816,10 +867,7 @@
     labelRects = occupied;
     const shown = new Set();
     const fontSize = state.regionFontSize;
-    const rectFor = d => ({
-      x1: d.centroid[0] - d.labelWidth / 2, y1: d.centroid[1] - fontSize * .7,
-      x2: d.centroid[0] + d.labelWidth / 2, y2: d.centroid[1] + fontSize * .4, kind: "label"
-    });
+    const rectFor = d => ({ ...labelRect(d.centroid, { dx: 0, dy: 0, anchor: "middle" }, d.labelWidth, fontSize), kind: "label" });
     // A federal city whose marker is already labelled (Москва, Санкт-Петербург, Севастополь) needs no region label on top.
     const labelledCities = new Set(state.cityLabels ? cities.filter(c => state.selectedCities.has(c.id) && c.point).map(c => normalize(c.name)) : []);
     const redundant = d => labelledCities.has(normalize(shortRegionName(d.properties.name)));
@@ -895,7 +943,7 @@
   function layoutCityLabels(occupied) {
     const fontSize = state.cityFontSize;
     const geo = markerGeometry();
-    const gap = geo.reach + 4;
+    const gap = geo.reach + (state.labelStyle === "pill" ? 13 : 4);
     const visible = cities.filter(city => state.selectedCities.has(city.id) && city.point);
     visible.forEach(city => occupied.push({
       x1: city.point[0] + geo.box[0], y1: city.point[1] + geo.box[1], x2: city.point[0] + geo.box[2], y2: city.point[1] + geo.box[3], kind: "marker"
@@ -982,7 +1030,8 @@
     const bx = point[0] + placement.dx;
     const by = point[1] + placement.dy;
     const x1 = placement.anchor === "start" ? bx : placement.anchor === "end" ? bx - w : bx - w / 2;
-    return { x1, y1: by - fontSize * .75, x2: x1 + w, y2: by + fontSize * .25 };
+    const px = state.labelStyle === "pill" ? 8 : 0, py = state.labelStyle === "pill" ? 5 : 0;
+    return { x1: x1 - px, y1: by - fontSize * .75 - py, x2: x1 + w + px, y2: by + fontSize * .25 + py };
   }
 
   function intersects(a, b) { return a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1; }
@@ -1022,6 +1071,10 @@
     if (!labelDrag.moved) return;
     labelDrag.element.setAttribute("x", labelDrag.dx0 + dx * labelDrag.scale);
     labelDrag.element.setAttribute("y", labelDrag.dy0 + dy * labelDrag.scale);
+    if (state.labelStyle === "pill") {
+      const rect = labelRect([0, 0], {dx: labelDrag.dx0 + dx * labelDrag.scale, dy: labelDrag.dy0 + dy * labelDrag.scale, anchor: labelDrag.anchor}, textWidth(labelDrag.city.name, state.cityFontSize), state.cityFontSize);
+      d3.select(labelDrag.element.parentNode).select(".city-label-background").attr("x", rect.x1).attr("y", rect.y1);
+    }
   }
 
   function endLabelDrag(event) {
@@ -1429,6 +1482,7 @@
   }
 
   function afterSelectionChange(revealId) {
+    updateRouteControls();
     document.getElementById("selected-total").textContent = state.selectedRegions.size + state.selectedCities.size;
     updateList();
     if (revealId) revealListItem(revealId);
@@ -1459,6 +1513,22 @@
   }
 
   function bindControls() {
+    [["label-style", "labelStyle"], ["route-mode", "routeMode"], ["route-style", "routeStyle"], ["route-hub", "routeHub"]].forEach(([id, key]) => {
+      document.getElementById(id).addEventListener("change", event => { state[key] = event.target.value; updateRouteControls(); updateLabelModeControls(); restyle(); saveState(); });
+    });
+    bindColor("label-background", "labelBackground");
+    bindColor("route-color", "routeColor");
+    bindRange("route-width", "routeWidth", "route-width-value", v => `${v} px`, Number);
+    bindRange("route-bend", "routeBend", "route-bend-value", v => `${v}%`, Number);
+    document.getElementById("route-shuffle").addEventListener("click", () => { state.routeSeed = state.routeSeed % 1000000 + 1; restyle(); saveState(); });
+    document.getElementById("route-order").addEventListener("click", event => {
+      const button = event.target.closest("[data-route-move]");
+      if (!button) return;
+      const ids = [...state.selectedCities], from = ids.indexOf(button.dataset.id), to = from + Number(button.dataset.routeMove);
+      if (from < 0 || to < 0 || to >= ids.length) return;
+      [ids[from], ids[to]] = [ids[to], ids[from]];
+      state.selectedCities = new Set(ids); updateRouteControls(); restyle(); saveState();
+    });
     document.querySelectorAll(".tab").forEach(button => button.addEventListener("click", () => {
       state.tab = button.dataset.tab;
       syncTabs();
@@ -2126,6 +2196,7 @@
   }
 
   function updateLabelModeControls() {
+    document.getElementById("label-pill-options").hidden = state.labelStyle !== "pill";
     document.getElementById("borders-enabled").checked = bordersOn();
     document.getElementById("border-controls").hidden = !bordersOn();
     document.getElementById("region-label-options").hidden = !state.regionLabels;
@@ -2157,6 +2228,8 @@
 
   function syncControls() {
     const pairs = {
+      "label-style": state.labelStyle, "label-background": state.labelBackground, "route-mode": state.routeMode, "route-style": state.routeStyle,
+      "route-color": state.routeColor, "route-width": state.routeWidth, "route-bend": state.routeBend,
       "dot-pitch": state.dotPitch, "dot-size": state.dotSize, "dot-field": state.dotField, "dot-field-color": state.dotFieldColor,
       "fill-start": state.fillStart, "gradient-type": state.gradientType,
       "gradient-angle": Math.round(state.angle), "fill-opacity": Math.round(state.opacity * 100), "selected-color": state.selectedColor,
@@ -2193,6 +2266,9 @@
     updateGradientControls();
     updateLabelModeControls();
     updateProjectionControls();
+    updateRouteControls();
+    document.getElementById("route-width-value").textContent = `${state.routeWidth} px`;
+    document.getElementById("route-bend-value").textContent = `${state.routeBend}%`;
     document.querySelectorAll("[data-ratio]").forEach(el => el.classList.toggle("is-active", el.dataset.ratio === state.ratio));
     syncTabs();
     document.getElementById("search").value = state.query;
@@ -2308,7 +2384,7 @@
       settings,
       selection: {
         regions: [...state.selectedRegions].sort(),
-        cities: [...state.selectedCities].sort()
+        cities: [...state.selectedCities]
       },
       regionColors,
       labelOffsets
@@ -2377,6 +2453,7 @@
         if (valid) value = clamp(value, NUMBER_RANGES[key][0], NUMBER_RANGES[key][1]);
       }
       else if (ENUM_SETTINGS[key]) valid = ENUM_SETTINGS[key].includes(value);
+      else if (key === "routeHub") valid = value === "" || (typeof value === "string" && cityIds.has(value));
       if (!valid) {
         if (strict) throw new Error(`недопустимое значение настройки «${key}»`);
         return;
@@ -2647,7 +2724,7 @@
     const { bounds } = vector;
     const { x, y, w, h, slideW, slideH } = imageBox;
     const unit = w / bounds.width; // inches per SVG unit
-    const glow = state.labelHalo
+    const glow = state.labelHalo && state.labelStyle === "plain"
       ? { size: Math.round(clamp(state.labelHaloWidth * unit * 72 * 2, .5, 12) * 10) / 10, opacity: 1, color: state.labelHaloColor.slice(1).toUpperCase() }
       : null;
     const place = (text, px, py, anchor, fontPx, color, tracking = 0) => {
