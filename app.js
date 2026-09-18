@@ -1694,7 +1694,6 @@
 
   // Inspector sections collapse like PowerPoint's format pane; the folded state is a UI preference, not part of the project.
   function bindSectionToggles() {
-    bindInspectorTabs();
     const sections = [...document.querySelectorAll(".control-section[data-section]")];
     const collapsed = new Set(loadUiPreference("collapsed", []).filter(id => sections.some(s => s.dataset.section === id)));
     const apply = () => sections.forEach(section => {
@@ -1715,38 +1714,6 @@
       apply();
       saveUiPreference("collapsed", [...collapsed]);
     }));
-  }
-
-  // Inspector navigation is a UI preference: it does not change the map or its undo history.
-  function bindInspectorTabs() {
-    const tabs = [...document.querySelectorAll("[data-inspector-tab]")];
-    const inspector = document.getElementById("inspector-panel");
-    const activate = (tab, { focus = false, persist = true } = {}) => {
-      tabs.forEach(button => {
-        const selected = button === tab;
-        button.setAttribute("aria-selected", String(selected));
-        button.tabIndex = selected ? 0 : -1;
-        document.getElementById(button.getAttribute("aria-controls")).hidden = !selected;
-      });
-      inspector.scrollTop = 0;
-      if (focus) tab.focus();
-      if (persist) saveUiPreference("inspectorTab", [tab.dataset.inspectorTab]);
-    };
-    const [saved] = loadUiPreference("inspectorTab", ["appearance"]);
-    activate(tabs.find(tab => tab.dataset.inspectorTab === saved) || tabs[0], { persist: false });
-    tabs.forEach((tab, index) => {
-      tab.addEventListener("click", () => activate(tab));
-      tab.addEventListener("keydown", event => {
-        let next;
-        if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
-        if (event.key === "ArrowLeft") next = (index + tabs.length - 1) % tabs.length;
-        if (event.key === "Home") next = 0;
-        if (event.key === "End") next = tabs.length - 1;
-        if (next === undefined) return;
-        event.preventDefault();
-        activate(tabs[next], { focus: true });
-      });
-    });
   }
 
   function loadUiPreference(key, fallback) {
