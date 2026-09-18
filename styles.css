@@ -117,8 +117,6 @@ button { color: inherit; }
 .panel-head h1, .panel-head h2 { margin: 0; font-size: 17px; line-height: 1.35; font-weight: 600; letter-spacing: -.035em; }
 .library-caption { margin: 8px 0 10px; color: var(--muted); font-size: 11px; }
 .library:has(#fd-chips[hidden]) .library-caption { display: none; }
-.library-note { display: flex; align-items: center; gap: 10px; flex: none; padding: 17px 0; border-top: 1px solid var(--line); color: var(--faint); font-size: 11px; line-height: 1.55; }
-.library-note svg { width: 16px; color: #969eb3; }
 .close-mobile, .mobile-panel-toggle { display: none; }
 
 .search-field { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; height: 40px; padding: 0 10px 0 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--field); }
@@ -254,10 +252,11 @@ kbd { padding: 2px 6px; color: var(--faint); border: 1px solid var(--line); bord
 .map-selection__corner[data-handle="nw"], .map-selection__corner[data-handle="se"] { cursor: nwse-resize; }
 .map-selection__corner[data-handle="ne"], .map-selection__corner[data-handle="sw"] { cursor: nesw-resize; }
 /* Globe viewpoint: the crosshair marks the point the viewer hangs over; screen-only, drawn in screen pixels via scale(). */
-.lens-focus { cursor: move; pointer-events: all; }
-.lens-focus__ring { fill: rgba(255,255,255,.9); stroke: var(--accent); stroke-width: 1.5; }
-.lens-focus line { stroke: var(--accent); stroke-width: 1.5; stroke-linecap: round; }
-.lens-focus__dot { fill: var(--accent); }
+/* Globe rotation handle, like PowerPoint's 3-D rotate grip: sits at the globe's centre, drag turns the globe. */
+.lens-focus { cursor: grab; pointer-events: all; }
+.lens-focus__ring { fill: rgba(255,255,255,.94); stroke: var(--accent); stroke-width: 1.5; filter: drop-shadow(0 1px 2px rgba(28,39,64,.25)); }
+.lens-focus__globe { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.3; }
+.lens-focus__arrow { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .lens-focus:hover .lens-focus__ring, .lens-focus.is-dragging .lens-focus__ring { fill: var(--accent-soft); }
 .lens-focus.is-dragging { cursor: grabbing; }
 .tooltip { position: fixed; z-index: 80; max-width: 250px; padding: 8px 11px; border-radius: 8px; color: #fff; background: rgba(28,39,64,.96); pointer-events: none; transform: translate(-50%, calc(-100% - 10px)); font-size: 12.5px; }
@@ -371,9 +370,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px 
 .route-order button:disabled { opacity: .3; cursor: default; }
 .scope-switch { flex: 0 0 auto; margin: 0 0 14px; }
 #globe-reference { width: 100%; margin: 8px 0; font-size: 11px; }
-.world-info { flex: 0 0 auto; margin: -4px 0 12px; color: var(--muted); font-size: 10px; line-height: 1.5; }
-.world-info summary { cursor: pointer; }
-.world-info p { margin: 6px 0; }
 .object-meta:empty { display: none; }
 #city-labels-hint { margin: 6px 0 2px; }
 .projection-help { min-height: 23px; }

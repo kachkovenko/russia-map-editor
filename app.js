@@ -20,10 +20,6 @@
     "Республика": "Респ.", "Край": "Край", "Область": "Обл.",
     "Город федерального значения": "ГФЗ", "Автономная область": "АО", "Автономный округ": "АО"
   };
-  const STYLE_HELP = Object.freeze({
-    atlas: "Сплошная заливка регионов, границы и контур страны.",
-    mosaic: "Точечная карта: работает на плоскости и глобусе. Подписи и связи городов сохраняются."
-  });
   // Region lookup for the mosaic is rasterised; sides above this many pixels are scaled down.
   const MAX_SAMPLE_SIDE = 4096;
   const PROJECTION_HELP = Object.freeze({
@@ -48,7 +44,7 @@
   const defaults = {
     mapScope: "russia", globeSurface: false, oceanColor: "#e5e7eb", globeLight: 65, lightAngle: 225,
     labelStyle: "plain", labelBackground: "#ffffff", routeMode: "off", routeStyle: "solid", routeColor: "#4263eb", routeWidth: 2, routeBend: 25, routeHub: "", routeSeed: 1,
-    tab: "regions", mapStyle: "atlas", dotPitch: 12, dotSize: 60, dotShape: "circle", dotLayout: "grid", dotField: false, dotFieldColor: "#d6d3cb", mosaicBorders: false,
+    tab: "regions", mapStyle: "atlas", dotPitch: 12, dotSize: 60, dotShape: "circle", dotLayout: "grid", mosaicBorders: false,
     gradient: true, gradientType: "linear", fillStart: "#3b5f8a", fillEnd: "#b9cad8",
     angle: 25, gradientStart: 0, gradientEnd: 100, opacity: 1, selectedColor: "#ff5f46", borders: true, borderColor: "#ffffff",
     borderWidth: 0.8, regionLabels: false, regionLabelsMode: "all", regionLabelsCaps: false, regionFontSize: 11, cityLabels: true, cityFontSize: 12,
@@ -60,7 +56,7 @@
   const PROJECT_SETTING_KEYS = Object.freeze([
     "mapScope", "globeSurface", "oceanColor", "globeLight", "lightAngle",
     "labelStyle", "labelBackground", "routeMode", "routeStyle", "routeColor", "routeWidth", "routeBend", "routeHub", "routeSeed",
-    "mapStyle", "dotPitch", "dotSize", "dotShape", "dotLayout", "dotField", "dotFieldColor", "mosaicBorders",
+    "mapStyle", "dotPitch", "dotSize", "dotShape", "dotLayout", "mosaicBorders",
     "gradient", "gradientType", "fillStart", "fillEnd", "angle", "gradientStart", "gradientEnd", "opacity", "selectedColor", "borders",
     "borderColor", "borderWidth", "regionLabels", "regionLabelsMode", "regionLabelsCaps", "regionFontSize", "cityLabels", "cityFontSize",
     "labelFont", "leaderLines", "leaderColor", "labelHalo", "labelHaloWidth", "labelHaloColor", "markerColor", "markerShape", "markerSize",
@@ -70,8 +66,8 @@
     "projectCompanion", "fontCompanion"
   ]);
   const VIEW_KEYS = Object.freeze(["viewZoom", "panX", "panY"]);
-  const BOOLEAN_SETTINGS = new Set(["dotField", "mosaicBorders", "gradient", "borders", "regionLabels", "regionLabelsCaps", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "graticule", "compass", "frame", "transparent", "projectCompanion", "fontCompanion"]);
-  const COLOR_SETTINGS = new Set(["dotFieldColor", "fillStart", "fillEnd", "selectedColor", "borderColor", "leaderColor", "labelHaloColor", "markerColor", "markerOutlineColor", "graticuleColor", "background"]);
+  const BOOLEAN_SETTINGS = new Set(["mosaicBorders", "gradient", "borders", "regionLabels", "regionLabelsCaps", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "graticule", "compass", "frame", "transparent", "projectCompanion", "fontCompanion"]);
+  const COLOR_SETTINGS = new Set(["fillStart", "fillEnd", "selectedColor", "borderColor", "leaderColor", "labelHaloColor", "markerColor", "markerOutlineColor", "graticuleColor", "background"]);
   const NUMBER_RANGES = Object.freeze({
     globeLight: [0, 100], lightAngle: [0, 360],
     routeWidth: [.5, 8], routeBend: [0, 70], routeSeed: [1, 1000000],
@@ -140,7 +136,6 @@
   let handleDrag = null;
   // The map as an object: its unturned box on the slide, the centre it turns about and the current turn (radians).
   let mapFrame = { x: 0, y: 0, width: BASE_WIDTH, height: RATIO_HEIGHTS["16:9"], center: [BASE_WIDTH / 2, RATIO_HEIGHTS["16:9"] / 2], angle: 0, anglePerDegree: 0 };
-  let lensBase = null;
   let lensDrag = null;
   const activePointers = new Map();
   const history = { past: [], future: [], current: null, burst: null };
@@ -159,7 +154,6 @@
   // Mosaic dot sets per region: grid nodes in the map frame's local coordinates ({u, v, x, y, i, j, off}) and the
   // field around; `off` marks a node handed over to a region that had none.
   let dotSets = [];
-  let fieldDots = [];
   let labelRects = [];
   const sampleCanvas = document.createElement("canvas");
   const sampleContext = sampleCanvas.getContext("2d", { willReadFrequently: true });
@@ -231,7 +225,6 @@
     document.getElementById("regions-tab-label").textContent = state.mapScope === "world" ? "Страны" : "Регионы";
     document.getElementById("search").placeholder = state.mapScope === "world" ? "Страна или город" : "Регион или город";
     document.querySelector('[data-projection="conic"] span').textContent = state.mapScope === "world" ? "Мир" : "Атласная";
-    document.getElementById("world-info").hidden = state.mapScope !== "world";
     document.querySelector('#borders-enabled').previousElementSibling.textContent = state.mapScope === "world" ? "Границы стран" : "Границы регионов";
     document.querySelector('#region-labels-enabled').previousElementSibling.textContent = state.mapScope === "world" ? "Названия стран" : "Названия регионов";
     state.activeRegions.clear(); state.mapSelected = false;
@@ -350,7 +343,7 @@
       fitTranslate = p.translate();
       const placement=mapPlacement();
       p.scale(p.scale()*placement.zoom).translate([fitTranslate[0]+placement.x,fitTranslate[1]+placement.y]);
-      projection=p; lensBase=null;
+      projection=p;
       const box=d3.geoPath(p).bounds({type:"Sphere"});
       const center=[(box[0][0]+box[1][0])/2,(box[0][1]+box[1][1])/2];
       mapFrame={x:box[0][0],y:box[0][1],width:box[1][0]-box[0][0],height:box[1][1]-box[0][1],center,angle:0,anglePerDegree:0};
@@ -374,7 +367,6 @@
     const center = [(box[0][0] + box[1][0]) / 2, (box[0][1] + box[1][1]) / 2];
     const straight = projectionFor(105).scale(scale).translate(translate);
 
-    lensBase = null;
     let build = r => projectionFor(105 + r).scale(scale).translate(translate);
     let level = straight;
     let frameBox = box;
@@ -386,7 +378,6 @@
       // crosshair keeps its size while the rest curves away. Turning rolls the view about the frame's centre.
       const viewpoint = [state.lensLon, state.lensLat];
       const anchor = straight(viewpoint);
-      lensBase = straight;
       build = r => perspectiveProjection(state.lensStrength).scale(scale).rotate([-viewpoint[0], -viewpoint[1], -r]).translate(anchor);
       level = build(0);
       frameBox = d3.geoPath(level).bounds(collection);
@@ -650,7 +641,7 @@
     const mosaic = state.mapStyle === "mosaic";
     cities.forEach(city => { city.point = city.projected; city.dot = null; });
     if (!mosaic) { d3.select("#dots-layer").attr("display", "none"); return; }
-    const key = [state.dotPitch, state.dotSize, state.dotShape, state.dotLayout, state.dotField].join("|");
+    const key = [state.dotPitch, state.dotSize, state.dotShape, state.dotLayout].join("|");
     if (dotsKey !== key) { buildDots(); dotsKey = key; }
     assignCityDots();
   }
@@ -664,20 +655,14 @@
     const pitch = dotPitch();
     const stagger = state.dotLayout === "stagger";
     const rowStep = stagger ? pitch * Math.sqrt(3) / 2 : pitch;
-    // Sampling window, relative to the frame's centre: the turned map's bounding box, widened to the slide when the
-    // field around it is on.
+    // Sampling window, relative to the frame's centre: the turned map's bounding box.
     const corners = Object.values(frameCorners());
-    if (state.dotField) {
-      if (state.frame) corners.push([0, 0], [width, 0], [width, height], [0, height]);
-      else corners.forEach(([x, y]) => corners.push([x - pitch * 2, y - pitch * 2], [x + pitch * 2, y + pitch * 2]));
-    }
     const u0 = Math.min(...corners.map(p => p[0])) - cx, u1 = Math.max(...corners.map(p => p[0])) - cx;
     const v0 = Math.min(...corners.map(p => p[1])) - cy, v1 = Math.max(...corners.map(p => p[1])) - cy;
     const i0 = Math.floor(u0 / pitch) - 1, i1 = Math.ceil(u1 / pitch) + 1;
     const j0 = Math.floor(v0 / rowStep) - 1, j1 = Math.ceil(v1 / rowStep) + 1;
     const lookup = rasterizeRegions({ x: cx + u0 - pitch, y: cy + v0 - pitch, width: u1 - u0 + pitch * 2, height: v1 - v0 + pitch * 2 });
     dotSets = features.map(() => []);
-    fieldDots = [];
     const owner = new Map();
     const node = (i, j) => {
       const u = i * pitch + (stagger && (j & 1) ? pitch / 2 : 0);
@@ -689,7 +674,6 @@
         const dot = node(i, j);
         const k = lookup(dot.x, dot.y);
         if (k >= 0) { owner.set(`${i}:${j}`, { k, index: dotSets[k].length }); dotSets[k].push(dot); }
-        else if (state.dotField) fieldDots.push(dot);
       }
     }
     // A region no node landed in (Москва, Севастополь, the small republics on a coarse grid) takes the grid node
@@ -775,7 +759,6 @@
     const key = `${dotsKey}|${[...cityDots].sort().join(",")}|${rects.map(r => `${Math.round(r.x1)},${Math.round(r.y1)},${Math.round(r.x2)},${Math.round(r.y2)}`).join(";")}`;
     if (dotsEmitKey !== key) {
       layer.attr("transform", `translate(${f.center[0]},${f.center[1]})`);
-      layer.select(".dots--field").attr("d", dotsPath(fieldDots.filter(clear), radius, state.dotShape));
       dotCount = 0;
       layer.selectAll(".dots--region").data(features, d => d.properties.id)
         .join(enter => enter.append("path").attr("class", "dots dots--region").attr("data-id", d => d.properties.id))
@@ -791,7 +774,6 @@
       .attr("fill", d => regionFill(d.properties.id, landFill))
       .attr("fill-opacity", state.opacity)
       .classed("is-selected", d => state.selectedRegions.has(d.properties.id));
-    layer.select(".dots--field").attr("fill", state.dotFieldColor).attr("display", state.dotField ? null : "none");
     document.getElementById("dot-pitch-value").textContent = `${state.dotPitch} px · ≈ ${dotCount.toLocaleString("ru-RU")} ${plural(dotCount, "точка", "точки", "точек")}`;
   }
 
@@ -1421,12 +1403,24 @@
       .attr("transform", `translate(${topX},${topY - 30 * k}) scale(${k})`);
   }
 
-  // The lens viewpoint crosshair sits on the lens's own centre, which the distortion leaves in place.
+  // The rotation grip sits at the globe's centre (the point the viewer hangs over), drawn in screen pixels.
   function updateLensFocus() {
     const focus = d3.select("#lens-focus");
-    if (!lensBase) { focus.attr("display", "none"); return; }
+    if (state.projection !== "globe" || !projection) { focus.attr("display", "none"); return; }
     const p = projection([state.lensLon, state.lensLat]);
+    if (!p || !p.every(Number.isFinite)) { focus.attr("display", "none"); return; }
     focus.attr("display", null).attr("transform", `translate(${p[0]},${p[1]}) scale(${1 / screenScale()})`);
+  }
+
+  // Turns the globe by a pointer offset: a drag across the globe's radius is a quarter turn.
+  function turnGlobe(lon0, lat0, dx, dy) {
+    const radius = Math.max(projection.scale() * screenScale(), 1);
+    const k = 90 / radius;
+    state.lensLon = Math.round(((lon0 - dx * k + 540) % 360 - 180) * 100) / 100;
+    state.lensLat = Math.round(clamp(lat0 + dy * k, NUMBER_RANGES.lensLat[0], NUMBER_RANGES.lensLat[1]) * 100) / 100;
+    const lonInput = document.getElementById("lens-lon"), latInput = document.getElementById("lens-lat");
+    if (lonInput) { lonInput.value = state.lensLon; document.getElementById("lens-lon-value").textContent = `${Math.round(state.lensLon)}°`; }
+    if (latInput) { latInput.value = state.lensLat; document.getElementById("lens-lat-value").textContent = `${Math.round(state.lensLat)}°`; }
   }
 
   function bindLensFocus() {
@@ -1434,19 +1428,16 @@
     focus.addEventListener("pointerdown", event => {
       if (event.button !== 0 && event.pointerType === "mouse") return;
       event.stopPropagation(); event.preventDefault();
-      lensDrag = { pointerId: event.pointerId, moved: false, startX: event.clientX, startY: event.clientY };
+      lensDrag = { pointerId: event.pointerId, moved: false, startX: event.clientX, startY: event.clientY, lon: state.lensLon, lat: state.lensLat };
       focus.setPointerCapture(event.pointerId);
       focus.classList.add("is-dragging");
     });
     focus.addEventListener("pointermove", event => {
-      if (!lensDrag || lensDrag.pointerId !== event.pointerId || !lensBase) return;
+      if (!lensDrag || lensDrag.pointerId !== event.pointerId) return;
       event.stopPropagation();
       if (Math.hypot(event.clientX - lensDrag.startX, event.clientY - lensDrag.startY) > 2) lensDrag.moved = true;
       if (!lensDrag.moved) return;
-      const geo = lensBase.invert(turnPoint(slidePoint(event.clientX, event.clientY), mapFrame.center, -mapFrame.angle));
-      if (!geo || !geo.every(Number.isFinite)) return;
-      state.lensLon = clamp(Math.round(geo[0] * 100) / 100, NUMBER_RANGES.lensLon[0], NUMBER_RANGES.lensLon[1]);
-      state.lensLat = clamp(Math.round(geo[1] * 100) / 100, NUMBER_RANGES.lensLat[0], NUMBER_RANGES.lensLat[1]);
+      turnGlobe(lensDrag.lon, lensDrag.lat, event.clientX - lensDrag.startX, event.clientY - lensDrag.startY);
       scheduleRender(); saveState(true);
     });
     const end = event => {
@@ -1461,7 +1452,8 @@
     focus.addEventListener("click", event => event.stopPropagation());
     focus.addEventListener("dblclick", event => {
       event.stopPropagation();
-      state.lensLon = defaults.lensLon; state.lensLat = defaults.lensLat;
+      state.lensLon = state.mapScope === "world" ? 35 : defaults.lensLon;
+      state.lensLat = state.mapScope === "world" ? 25 : defaults.lensLat;
       render(); saveState();
       showToast("Точка обзора — в центре карты");
     });
@@ -1726,8 +1718,6 @@
       state.dotLayout = button.dataset.dotLayout;
       updateStyleControls(); restyle(); saveState();
     }));
-    bindCheck("dot-field", "dotField", updateStyleControls);
-    bindColor("dot-field-color", "dotFieldColor");
     document.querySelectorAll("[data-fill-mode]").forEach(button => button.addEventListener("click", () => {
       const gradient = button.dataset.fillMode === "gradient";
       if (state.gradient === gradient) return;
@@ -2001,10 +1991,7 @@
       const dy = event.clientY - panGesture.startY;
       if (!panGesture.moved && Math.hypot(dx, dy) > 4) { panGesture.moved = true; capturePointer(event.pointerId); }
       if (panGesture.globeTurn) {
-        state.lensLon=((panGesture.lon-dx*.3+540)%360)-180;
-        state.lensLat=clamp(panGesture.lat+dy*.3,-85,85);
-        document.getElementById("lens-lon").value=state.lensLon; document.getElementById("lens-lat").value=state.lensLat;
-        document.getElementById("lens-lon-value").textContent=`${Math.round(state.lensLon)}°`; document.getElementById("lens-lat-value").textContent=`${Math.round(state.lensLat)}°`;
+        turnGlobe(panGesture.lon, panGesture.lat, dx, dy);
         scheduleRender(); return;
       }
       if (state.frame) {
@@ -2124,7 +2111,7 @@
     stage.style.setProperty("--grid-x", `calc(50% + ${view.x + originX}px)`);
     stage.style.setProperty("--grid-y", `calc(50% + ${view.y + originY}px)`);
     if (state.mapSelected || mapHover) updateMapSelection();
-    if (lensBase) updateLensFocus();
+    if (state.projection === "globe") updateLensFocus();
   }
 
   function bindCheck(id, key, callback) {
@@ -2288,10 +2275,8 @@
     const mosaic = state.mapStyle === "mosaic";
     document.querySelectorAll("[data-map-style]").forEach(el => el.classList.toggle("is-active", el.dataset.mapStyle === state.mapStyle));
     document.getElementById("mosaic-options").hidden = !mosaic;
-    document.getElementById("dot-field-options").hidden = !state.dotField;
     document.querySelectorAll("[data-dot-shape]").forEach(el => el.classList.toggle("is-active", el.dataset.dotShape === state.dotShape));
     document.querySelectorAll("[data-dot-layout]").forEach(el => el.classList.toggle("is-active", el.dataset.dotLayout === state.dotLayout));
-    document.getElementById("style-help").textContent = STYLE_HELP[state.mapStyle];
     ["marker-shape-row", "marker-size-row", "marker-outline-row"].forEach(id => { document.getElementById(id).hidden = mosaic; });
     document.querySelectorAll('[data-projection="globe"], [data-quick-projection="globe"]').forEach(el => {
       if (el.dataset.title === undefined) el.dataset.title = el.title;
@@ -2341,7 +2326,7 @@
       "globe-surface-enabled":state.globeSurface,"ocean-color":state.oceanColor,"globe-light-strength":state.globeLight,"light-angle":state.lightAngle,"lens-lon":state.lensLon,"lens-lat":state.lensLat,
       "label-style": state.labelStyle, "label-background": state.labelBackground, "route-mode": state.routeMode, "route-style": state.routeStyle,
       "route-color": state.routeColor, "route-width": state.routeWidth, "route-bend": state.routeBend,
-      "dot-pitch": state.dotPitch, "dot-size": state.dotSize, "dot-field": state.dotField, "dot-field-color": state.dotFieldColor,
+      "dot-pitch": state.dotPitch, "dot-size": state.dotSize,
       "fill-start": state.fillStart, "gradient-type": state.gradientType,
       "gradient-angle": Math.round(state.angle), "fill-opacity": Math.round(state.opacity * 100), "selected-color": state.selectedColor,
       "border-color": state.borderColor, "border-width": state.borderWidth,

@@ -82,7 +82,6 @@
         </div>
 
         <div class="segmented scope-switch" role="group" aria-label="Охват карты"><button type="button" data-map-scope="russia" class="is-active">Россия</button><button type="button" data-map-scope="world">Весь мир</button></div>
-        <details id="world-info" class="world-info" hidden><summary>О городах и границах</summary><p>Страны и территории по Natural Earth; границы РФ согласованы с российским режимом. Принадлежность Крыма и других включённых спорных территорий международно оспаривается. Геометрия обзорная, не юридическая.</p><p>В каталоге — российские города и основные города и столицы мира, не все населённые пункты планеты.</p></details>
         <label class="search-field">
           <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
           <input id="search" type="search" placeholder="Регион или город" autocomplete="off">
@@ -105,7 +104,6 @@
         </div>
 
         <div class="object-list" id="object-list" aria-live="polite"></div>
-        <div class="library-note"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 3 14 9-7 1-3 7Z"/></svg><span>Отмечайте объекты в списке<br>или прямо на карте</span></div>
       </aside>
 
       <main class="stage" id="stage">
@@ -143,7 +141,7 @@
               <rect class="export-background" id="export-background"></rect>
               <g id="export-content">
                 <path id="globe-surface" pointer-events="none" display="none"></path>
-                <g id="globe-dots-clip"><g id="dots-layer" display="none"><path class="dots dots--field"></path></g></g>
+                <g id="globe-dots-clip"><g id="dots-layer" display="none"></g></g>
                 <g id="regions-layer"></g>
                 <path id="country-outline" class="country-outline"></path>
                 <path id="graticule" class="graticule" display="none"></path>
@@ -165,11 +163,11 @@
                 <g class="map-selection__handle map-selection__corner" data-handle="sw"><rect x="-4.5" y="-4.5" width="9" height="9"></rect></g>
               </g>
               <g id="lens-focus" class="lens-focus" display="none">
-                <title>Точка обзора: наблюдатель висит над ней. Перетащите; двойной клик возвращает в центр.</title>
-                <circle class="lens-focus__ring" r="11"></circle>
-                <line x1="-17" y1="0" x2="-7" y2="0"></line><line x1="7" y1="0" x2="17" y2="0"></line>
-                <line x1="0" y1="-17" x2="0" y2="-7"></line><line x1="0" y1="7" x2="0" y2="17"></line>
-                <circle class="lens-focus__dot" r="1.8"></circle>
+                <title>Вращение глобуса: потяните. Двойной клик возвращает в исходное положение.</title>
+                <circle class="lens-focus__ring" r="15"></circle>
+                <circle class="lens-focus__globe" r="5.5"></circle>
+                <path class="lens-focus__arrow" d="M-10.5,-2.2A11,11 0 0 1 5.2,-9.8M5.2,-9.8l-5.6,-1.4M5.2,-9.8l-1.6,5.2"></path>
+                <path class="lens-focus__arrow" d="M10.5,2.2A11,11 0 0 1 -5.2,9.8M-5.2,9.8l5.6,1.4M-5.2,9.8l1.6,-5.2"></path>
               </g>
             </svg>
             <div class="frame-label" id="frame-label">16:9 · PNG 3200 × 1800</div>
@@ -211,7 +209,6 @@
                 <button class="is-active" data-map-style="atlas" title="Сплошная заливка регионов"><svg class="style-preview" viewBox="0 0 100 48" aria-hidden="true"><path d="m8 21 13-10 13 4 10-9 17 5 8-6 21 12-6 15-17 1-12 9-16-7-15 4-9-9Z" fill="currentColor"/><path d="m34 15 5 20m5-29 11 36m14-37-2 28M8 21l82-4" fill="none" stroke="white" stroke-width="1.5"/></svg><span>Атлас</span><small>Сплошная карта</small></button>
                 <button data-map-style="mosaic" title="Регионы набраны сеткой точек"><svg class="style-preview" viewBox="0 0 100 48" aria-hidden="true"><defs><pattern id="style-dot-preview" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="1.8" fill="currentColor"/></pattern></defs><path d="m8 21 13-10 13 4 10-9 17 5 8-6 21 12-6 15-17 1-12 9-16-7-15 4-9-9Z" fill="url(#style-dot-preview)"/></svg><span>Мозаика</span><small>Карта из точек</small></button>
               </div>
-              <p class="microcopy projection-help" id="style-help">Сплошная заливка регионов, границы и контур страны.</p>
               <div class="sub-options" id="mosaic-options" hidden>
                 <label class="range-row"><span>Шаг сетки <output id="dot-pitch-value">12 px</output></span><span class="range-track" style="--ticks: 26"><input id="dot-pitch" type="range" min="6" max="32" value="12"></span></label>
                 <label class="range-row"><span>Размер точки <output id="dot-size-value">60%</output></span><span class="range-track" style="--ticks: 14"><input id="dot-size" type="range" min="30" max="100" step="5" value="60"></span></label>
@@ -229,10 +226,6 @@
                     <button type="button" class="is-active" data-dot-layout="grid">Ряды</button>
                     <button type="button" data-dot-layout="stagger">Шахматная</button>
                   </div>
-                </div>
-                <label class="switch-row"><span>Точки вокруг страны</span><input class="switch" id="dot-field" type="checkbox"></label>
-                <div class="sub-options" id="dot-field-options" hidden>
-                  <label class="color-row"><span>Цвет поля</span><span class="swatch"><input id="dot-field-color" type="color" value="#d6d3cb"><input class="hex-input" data-color-text-for="dot-field-color" value="#D6D3CB" maxlength="7" aria-label="HEX-код точек вокруг страны" spellcheck="false"></span></label>
                 </div>
               </div>
             </div>
@@ -382,7 +375,7 @@
                 <label class="range-row"><span>Направление света <output id="light-angle-value">225°</output></span><input id="light-angle" type="range" min="0" max="360" value="225"></label>
                 <label class="range-row"><span>Долгота обзора <output id="lens-lon-value">91°</output></span><input id="lens-lon" type="range" min="-180" max="180" step="1" value="91"></label>
                 <label class="range-row"><span>Широта обзора <output id="lens-lat-value">65°</output></span><input id="lens-lat" type="range" min="-85" max="85" step="1" value="65"></label>
-                <p class="microcopy">Alt + перетаскивание вращает глобус. Обычное перетаскивание перемещает карту.</p>
+                <p class="microcopy">Вращайте глобус за значок в его центре (или Alt + перетаскивание). Обычное перетаскивание перемещает карту.</p>
               </div>
               <label class="range-row"><span>Поворот <output id="rotation-value">0°</output></span><span class="range-track" style="--ticks: 6"><input id="rotation" type="range" min="-45" max="45" value="0"></span></label>
               <label class="range-row globe-only" hidden><span>Перспектива <output id="lens-strength-value">55%</output></span><span class="range-track" style="--ticks: 4"><input id="lens-strength" type="range" min="0" max="100" value="55"></span></label>
