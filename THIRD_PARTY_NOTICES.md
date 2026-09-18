@@ -13,6 +13,8 @@
   - Unbounded — Copyright 2022 The Unbounded Project Authors (https://github.com/googlefonts/unbounded)
 - City catalogue (`data/cities.js`) — built from Wikidata, CC0 1.0 (public domain dedication), https://www.wikidata.org/ — see `tools/build-cities.mjs`.
 - Region geometry — adapted from GeoJSON Atlas commit `644874ada665a0f2c0c81a0d47adacea97365c30`, CC0 1.0, https://github.com/BenPortner/geojson-atlas
+- World geometry and country names — the same GeoJSON Atlas CC0 source; pinned inputs, territorial adaptations and build procedure: `data/WORLD_DATA.md`.
+- Major world cities — Natural Earth populated places 1:110m, public domain; version and SHA-256: `data/WORLD_DATA.md`.
 - GeoJSON Atlas region linework is based on Natural Earth 1:10m, public domain, https://www.naturalearthdata.com/about/terms-of-use/
 - Undo/redo, export and import icons (inline SVG paths in `index.html`) — Flaticon «undo-alt», «file-export», «file-import», used under the project author's Flaticon Premium licence (no attribution required, not redistributable as a standalone file). Forks and reuse of this code need their own licence for the icon or a replacement, https://www.flaticon.com/
 

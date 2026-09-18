@@ -369,6 +369,12 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px 
 .route-order li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
 .route-order button { width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); cursor: pointer; }
 .route-order button:disabled { opacity: .3; cursor: default; }
+.scope-switch { flex: 0 0 auto; margin: 0 0 14px; }
+#globe-reference { width: 100%; margin: 8px 0; font-size: 11px; }
+.world-info { flex: 0 0 auto; margin: -4px 0 12px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.world-info summary { cursor: pointer; }
+.world-info p { margin: 6px 0; }
+.object-meta:empty { display: none; }
 #city-labels-hint { margin: 6px 0 2px; }
 .projection-help { min-height: 23px; }
 .control-section:last-of-type { border-bottom: 1px solid var(--line); }

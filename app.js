@@ -6,7 +6,7 @@
   const RATIO_HEIGHTS = { "16:9": 900, "4:3": 1200 };
   const GRID_SPACING = 24;
   const PROJECT_FORMAT = "map.kachkovenko.kontur";
-  const PROJECT_VERSION = 1;
+  const PROJECT_VERSION = 2;
   const MAX_PROJECT_BYTES = 256 * 1024;
   const STORAGE_KEY = "kontur-map-state";
   const UI_STORAGE_KEY = "kontur-map-ui";
@@ -22,7 +22,7 @@
   };
   const STYLE_HELP = Object.freeze({
     atlas: "Сплошная заливка регионов, границы и контур страны.",
-    mosaic: "Регионы набраны сеткой точек, как на инфографике; точки едут и поворачиваются вместе с картой. Глобус недоступен."
+    mosaic: "Точечная карта: работает на плоскости и глобусе. Подписи и связи городов сохраняются."
   });
   // Region lookup for the mosaic is rasterised; sides above this many pixels are scaled down.
   const MAX_SAMPLE_SIDE = 4096;
@@ -46,6 +46,7 @@
   });
 
   const defaults = {
+    mapScope: "russia", globeSurface: false, oceanColor: "#e5e7eb", globeLight: 65, lightAngle: 225,
     labelStyle: "plain", labelBackground: "#ffffff", routeMode: "off", routeStyle: "solid", routeColor: "#4263eb", routeWidth: 2, routeBend: 25, routeHub: "", routeSeed: 1,
     tab: "regions", mapStyle: "atlas", dotPitch: 12, dotSize: 60, dotShape: "circle", dotLayout: "grid", dotField: false, dotFieldColor: "#d6d3cb", mosaicBorders: false,
     gradient: true, gradientType: "linear", fillStart: "#3b5f8a", fillEnd: "#b9cad8",
@@ -57,6 +58,7 @@
     background: "#ffffff", transparent: false, zoom: 1, mapX: 0, mapY: 0, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, lensLon: 91.06, lensLat: 65.36, projectCompanion: true, fontCompanion: true
   };
   const PROJECT_SETTING_KEYS = Object.freeze([
+    "mapScope", "globeSurface", "oceanColor", "globeLight", "lightAngle",
     "labelStyle", "labelBackground", "routeMode", "routeStyle", "routeColor", "routeWidth", "routeBend", "routeHub", "routeSeed",
     "mapStyle", "dotPitch", "dotSize", "dotShape", "dotLayout", "dotField", "dotFieldColor", "mosaicBorders",
     "gradient", "gradientType", "fillStart", "fillEnd", "angle", "gradientStart", "gradientEnd", "opacity", "selectedColor", "borders",
@@ -71,6 +73,7 @@
   const BOOLEAN_SETTINGS = new Set(["dotField", "mosaicBorders", "gradient", "borders", "regionLabels", "regionLabelsCaps", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "graticule", "compass", "frame", "transparent", "projectCompanion", "fontCompanion"]);
   const COLOR_SETTINGS = new Set(["dotFieldColor", "fillStart", "fillEnd", "selectedColor", "borderColor", "leaderColor", "labelHaloColor", "markerColor", "markerOutlineColor", "graticuleColor", "background"]);
   const NUMBER_RANGES = Object.freeze({
+    globeLight: [0, 100], lightAngle: [0, 360],
     routeWidth: [.5, 8], routeBend: [0, 70], routeSeed: [1, 1000000],
     dotPitch: [6, 32], dotSize: [30, 100],
     angle: [0, 360], gradientStart: [0, 100], gradientEnd: [0, 100], opacity: [.1, 1], borderWidth: [.2, 4], markerSize: [3, 12],
@@ -79,6 +82,7 @@
     lensStrength: [0, 100], lensLon: [-180, 180], lensLat: [-85, 85]
   });
   const ENUM_SETTINGS = Object.freeze({
+    mapScope: ["russia", "world"],
     labelStyle: ["plain", "pill"], routeMode: ["off", "hub", "network", "chain"], routeStyle: ["solid", "dashed", "dotted"],
     gradientType: ["linear", "radial"], mapStyle: ["atlas", "mosaic"], dotShape: ["circle", "square", "rounded"], dotLayout: ["grid", "stagger"],
     projection: ["conic", "mercator", "globe"], ratio: ["16:9", "4:3"], tab: ["regions", "cities", "selected"], regionLabelsMode: ["all", "selected"],
@@ -108,6 +112,8 @@
   const selectFoundButton = document.getElementById("select-found");
 
   let width = BASE_WIDTH;
+  const datasets = {};
+  let boundScope = null;
   let height = RATIO_HEIGHTS[state.ratio];
   let features = [];
   let cities = [];
@@ -141,6 +147,8 @@
   function mapFont() { return LABEL_FONTS[state.labelFont].stack; }
   COLOR_SETTINGS.add("labelBackground");
   COLOR_SETTINGS.add("routeColor");
+  COLOR_SETTINGS.add("oceanColor");
+  BOOLEAN_SETTINGS.add("globeSurface");
   const measureContext = document.createElement("canvas").getContext("2d");
   const measureCache = new Map();
   let shownRegionLabels = new Set();
@@ -179,8 +187,57 @@
     features.forEach(d => { d.area = d3.geoArea(d); });
     cities = makeCities(features);
     topCities = cities.slice().sort((a, b) => b.population - a.population).slice(0, TOP_CITIES_COUNT);
-    regionIds = new Set(features.map(d => d.properties.id));
-    cityIds = new Set(cities.map(d => d.id));
+    datasets.russia = { features, cities, outline };
+    const worldTopo = window.WORLD_TOPO;
+    if (worldTopo) {
+      const worldFeatures = topojson.feature(worldTopo, worldTopo.objects.countries).features.sort((a,b) => a.properties.name.localeCompare(b.properties.name,"ru"));
+      worldFeatures.forEach(d => { d.area = d3.geoArea(d); });
+      datasets.world = {features:worldFeatures, outline:topojson.merge(worldTopo,worldTopo.objects.countries.geometries),cities:cities.map(c=>({...c, regionId:"country-rus",region:"Россия",fd:""}))};
+      const countries = new Map(worldFeatures.map(f=>[f.properties.id,f]));
+      (window.WORLD_CITIES || []).forEach(c=>{
+        if(c.country==="country-rus" || datasets.world.cities.some(existing=>Math.abs(existing.lon-c.lon)<.15&&Math.abs(existing.lat-c.lat)<.15)) return;
+        const country=countries.get(c.country);
+        if(!country) return;
+        datasets.world.cities.push({...c,regionId:c.country,region:country.properties.name,fd:""});
+      });
+      datasets.world.cities.sort((a,b)=>a.name.localeCompare(b.name,"ru"));
+    }
+    regionIds = new Set(Object.values(datasets).flatMap(s=>s.features.map(d=>d.properties.id)));
+    cityIds = new Set(Object.values(datasets).flatMap(s=>s.cities.map(d=>d.id)));
+    bindMapData();
+    buildDistrictChips();
+    bindSectionToggles();
+    bindControls();
+    loadSavedState();
+    syncDataset();
+    syncControls();
+    updateCanvasSize();
+    updateList();
+    render();
+    history.current = snapshot();
+    updateHistoryButtons();
+    applyLabelFont();
+  }
+
+  function syncDataset() {
+    if (!datasets[state.mapScope]) state.mapScope = "russia";
+    if (boundScope === state.mapScope) return;
+    ({features,cities,outline} = datasets[state.mapScope]);
+    topCities = cities.slice().sort((a,b)=>b.population-a.population).slice(0,TOP_CITIES_COUNT);
+    bindMapData();
+    boundScope = state.mapScope;
+    document.querySelector(".document-title__name").textContent = state.mapScope === "world" ? "Карта мира" : "Карта России";
+    document.querySelector(".library h1").textContent = state.mapScope === "world" ? "Страны и города" : "Регионы и города";
+    document.getElementById("regions-tab-label").textContent = state.mapScope === "world" ? "Страны" : "Регионы";
+    document.getElementById("search").placeholder = state.mapScope === "world" ? "Страна или город" : "Регион или город";
+    document.querySelector('[data-projection="conic"] span').textContent = state.mapScope === "world" ? "Мир" : "Атласная";
+    document.getElementById("world-info").hidden = state.mapScope !== "world";
+    document.querySelector('#borders-enabled').previousElementSibling.textContent = state.mapScope === "world" ? "Границы стран" : "Границы регионов";
+    document.querySelector('#region-labels-enabled').previousElementSibling.textContent = state.mapScope === "world" ? "Названия стран" : "Названия регионов";
+    state.activeRegions.clear(); state.mapSelected = false;
+  }
+
+  function bindMapData() {
 
     document.getElementById("regions-count").textContent = features.length;
     document.getElementById("cities-count").textContent = cities.length;
@@ -208,6 +265,7 @@
       .on("mousemove", cityHover)
       .on("mouseleave", hideTooltip)
       .on("click", (event, d) => { event.stopPropagation(); if (Date.now() >= suppressSelectionUntil) toggleCity(d.id, true); });
+    cityGroups.selectAll("*").remove();
     cityGroups.append("line").attr("class", "city-leader");
     cityGroups.append("circle").attr("class", "city-marker__ring");
     cityGroups.append("path").attr("class", "city-marker");
@@ -223,17 +281,6 @@
         restyle(); saveState(); showToast("Подпись возвращена на автоматическое место");
       });
 
-    buildDistrictChips();
-    bindSectionToggles();
-    bindControls();
-    loadSavedState();
-    syncControls();
-    updateCanvasSize();
-    updateList();
-    render();
-    history.current = snapshot();
-    updateHistoryButtons();
-    applyLabelFont();
   }
 
   // Labels are measured on a canvas, so the chosen font has to be loaded before they are laid out; until then the
@@ -295,6 +342,20 @@
   }
 
   function makeProjection() {
+    if (state.mapScope === "world" || (state.projection === "globe" && state.globeSurface)) {
+      const globe = state.projection === "globe";
+      const p = globe ? perspectiveProjection(state.lensStrength).rotate([-state.lensLon,-state.lensLat,-state.rotation])
+        : state.projection === "mercator" ? d3.geoMercator() : d3.geoEqualEarth();
+      p.fitExtent([[width*.065,height*.07],[width*.935,height*.93]], {type:"Sphere"});
+      fitTranslate = p.translate();
+      const placement=mapPlacement();
+      p.scale(p.scale()*placement.zoom).translate([fitTranslate[0]+placement.x,fitTranslate[1]+placement.y]);
+      projection=p; lensBase=null;
+      const box=d3.geoPath(p).bounds({type:"Sphere"});
+      const center=[(box[0][0]+box[1][0])/2,(box[0][1]+box[1][1])/2];
+      mapFrame={x:box[0][0],y:box[0][1],width:box[1][0]-box[0][0],height:box[1][1]-box[0][1],center,angle:0,anglePerDegree:0};
+      return;
+    }
     const projectionFor = centerLon => state.projection === "mercator"
       ? d3.geoMercator().rotate([-centerLon, 0])
       : d3.geoConicEqualArea().parallels([50, 70]).rotate([-centerLon, 0]);
@@ -329,6 +390,7 @@
       build = r => perspectiveProjection(state.lensStrength).scale(scale).rotate([-viewpoint[0], -viewpoint[1], -r]).translate(anchor);
       level = build(0);
       frameBox = d3.geoPath(level).bounds(collection);
+      if (!frameBox.flat().every(Number.isFinite)) frameBox = d3.geoPath(level).bounds({type:"Sphere"});
       frameCenter = [(frameBox[0][0] + frameBox[1][0]) / 2, (frameBox[0][1] + frameBox[1][1]) / 2];
     }
     // Turning the central meridian turns a conic image rigidly about the cone's apex (rolling the globe's view turns
@@ -396,7 +458,7 @@
 
   function renderRoutes() {
     const byId = new Map(cities.map(c => [c.id, c]));
-    const edges = MapRoutes.edges([...state.selectedCities], state.routeMode, state.routeHub, state.routeSeed);
+    const edges = MapRoutes.edges([...state.selectedCities].filter(id=>byId.has(id)), state.routeMode, state.routeHub, state.routeSeed);
     const line = ([a, b]) => {
       const from = byId.get(a), to = byId.get(b);
       if (!from || !to) return null;
@@ -416,6 +478,23 @@
     return state.frame ? { zoom: state.zoom, x: state.mapX, y: state.mapY } : { zoom: 1, x: 0, y: 0 };
   }
 
+  function renderGlobeLight() {
+    d3.select("#globe-clip path").attr("d",state.projection==="globe"?path({type:"Sphere"}):null);
+    d3.select("#globe-dots-clip").attr("clip-path",state.projection==="globe"?"url(#globe-clip)":null);
+    const shown=state.projection==="globe" && state.globeSurface;
+    const surface=d3.select("#globe-surface"), light=d3.select("#globe-light");
+    surface.attr("display",shown?null:"none"); light.attr("display",shown&&state.globeLight?null:"none");
+    if(!shown) return;
+    const sphere=path({type:"Sphere"});
+    surface.attr("d",sphere).attr("fill",state.oceanColor);
+    light.selectAll("path").attr("d",sphere);
+    light.attr("opacity",state.globeLight/100);
+    const a=state.lightAngle*Math.PI/180;
+    const cx=50+Math.cos(a)*25,cy=50+Math.sin(a)*25;
+    d3.select("#globe-shade").attr("cx",`${cx}%`).attr("cy",`${cy}%`);
+    d3.select("#globe-gloss").attr("cx",`${cx}%`).attr("cy",`${cy}%`);
+  }
+
   // Full render: recompute the projection and every geometry, then restyle.
   function render() {
     if (!features.length) return;
@@ -431,7 +510,8 @@
     dotsKey = null;
     cities.forEach(city => {
       const p = projection([city.lon, city.lat]);
-      city.projected = p && isFinite(p[0]) && isFinite(p[1]) ? p : null;
+      const visible = state.projection !== "globe" || !!path({type:"Point",coordinates:[city.lon,city.lat]});
+      city.projected = visible && p && isFinite(p[0]) && isFinite(p[1]) ? p : null;
       city.point = city.projected;
     });
     restyle();
@@ -479,8 +559,8 @@
     }).each(function (d) { d3.select(this).selectAll("path").attr("d", path(d)); });
 
     d3.select("#country-outline")
-      .attr("stroke", darken(state.fillStart, .45))
-      .attr("stroke-width", Math.max(1.1, state.borderWidth * 1.35))
+      .attr("stroke", state.mapScope === "world" ? state.borderColor : darken(state.fillStart, .45))
+      .attr("stroke-width", state.mapScope === "world" ? state.borderWidth : Math.max(1.1, state.borderWidth * 1.35))
       .attr("display", borders && !mosaic ? null : "none");
     svg.classed("is-mosaic", mosaic);
     prepareDots();
@@ -524,7 +604,7 @@
         .attr("x", d.label.dx).attr("y", d.label.dy)
         .attr("text-anchor", d.label.anchor)
         .attr("font-size", state.cityFontSize)
-        .attr("fill", state.markerColor)
+        .attr("fill", state.labelStyle === "pill" ? "#29303c" : state.markerColor)
         .attr("stroke", haloStroke)
         .attr("stroke-width", halo)
         .classed("is-manual", !!state.cityLabelOffsets[d.id]);
@@ -541,6 +621,7 @@
       .attr("width", d => d.labelWidth + 16).attr("height", state.regionFontSize + 10).attr("rx", (state.regionFontSize + 10) / 2)
       .attr("fill", state.labelBackground).attr("fill-opacity", .95);
     renderRoutes();
+    renderGlobeLight();
 
     emitDots(landFill);
     updateGraticule();
@@ -554,7 +635,10 @@
     document.querySelectorAll("[data-projection]").forEach(el => el.classList.toggle("is-active", el.dataset.projection === state.projection));
     document.querySelectorAll("[data-quick-projection]").forEach(el => el.classList.toggle("is-active", (state.projection === "globe" ? "globe" : "conic") === el.dataset.quickProjection));
     document.querySelectorAll(".globe-only").forEach(el => el.hidden = state.projection !== "globe");
-    document.getElementById("projection-help").textContent = PROJECTION_HELP[state.projection];
+    document.getElementById("projection-help").textContent = state.projection === "globe" && (state.mapScope === "world" || state.globeSurface)
+      ? "Вид на сферу. Меняйте точку обзора ползунками или Alt-перетаскиванием. Перспектива задаёт высоту наблюдателя; города за горизонтом скрыты."
+      : state.mapScope === "world" && state.projection === "conic" ? "Equal Earth: равновеликая карта всего мира." : PROJECTION_HELP[state.projection];
+    document.getElementById("route-bend-row").hidden = state.mapScope === "world" || state.projection === "globe";
   }
 
   // Mosaic style: every region becomes one path of dot subpaths. The dot grid is anchored to the map object (origin at
@@ -723,16 +807,17 @@
     ctx.setTransform(scale, 0, 0, scale, -box.x * scale, -box.y * scale);
     ctx.clearRect(box.x, box.y, box.width, box.height);
     features.map((d, k) => k).sort((a, b) => features[b].area - features[a].area).forEach(k => {
-      ctx.fillStyle = `rgb(${k},${(k * 7 + 3) % 256},${(k * 13 + 5) % 256})`;
-      ctx.fill(new Path2D(regionD[k]));
+      const code = k + 1;
+      ctx.fillStyle = `rgb(${code & 255},${code >>> 8},${(code * 13 + 5) % 256})`;
+      if (regionD[k]) ctx.fill(new Path2D(regionD[k]));
     });
     const data = ctx.getImageData(0, 0, w, h).data;
     const decode = (x, y) => {
       if (x < 0 || y < 0 || x >= w || y >= h) return -1;
       const o = (y * w + x) * 4;
       if (data[o + 3] !== 255) return -1;
-      const k = data[o];
-      return data[o + 1] === (k * 7 + 3) % 256 && data[o + 2] === (k * 13 + 5) % 256 ? k : -2;
+      const code = data[o] + (data[o + 1] << 8);
+      return code > 0 && code <= features.length && data[o + 2] === (code * 13 + 5) % 256 ? code - 1 : -2;
     };
     return (sx, sy) => {
       const x = Math.floor((sx - box.x) * scale), y = Math.floor((sy - box.y) * scale);
@@ -764,11 +849,9 @@
   // Region borders are remembered per style: the mosaic starts without them, the atlas with them.
   function bordersOn() { return state.mapStyle === "mosaic" ? state.mosaicBorders : state.borders; }
 
-  // The lens distorts the sampling grid unevenly, so the mosaic falls back to the atlas projection.
+  // The mosaic samples already projected geometry, including the visible globe hemisphere.
   function enforceStyleRules() {
-    if (state.mapStyle !== "mosaic" || state.projection !== "globe") return false;
-    state.projection = "conic";
-    return true;
+    return false;
   }
 
   function plural(n, one, few, many) {
@@ -786,7 +869,7 @@
     const key = `${state.graticuleStep}`;
     if (graticuleKey !== key) {
       const step = state.graticuleStep;
-      net.attr("d", path(d3.geoGraticule().extent(GRATICULE_EXTENT).step([step, step])()));
+      net.attr("d", path(d3.geoGraticule().extent(state.mapScope === "world" ? [[-180,-85],[180,85]] : GRATICULE_EXTENT).step([step, step])()));
       graticuleKey = key;
     }
     net.attr("display", null).attr("stroke", state.graticuleColor).attr("stroke-opacity", .28).attr("stroke-width", .7);
@@ -1137,7 +1220,7 @@
     } else {
       const regions = features.filter(f => state.selectedRegions.has(f.properties.id) && regionMatches(f, query));
       const picked = cities.filter(c => state.selectedCities.has(c.id) && cityMatches(c, query));
-      if (regions.length) sections.push({ kind: "region", title: `Регионы · ${regions.length}`, items: regions });
+      if (regions.length) sections.push({ kind: "region", title: `${state.mapScope === "world" ? "Страны" : "Регионы"} · ${regions.length}`, items: regions });
       if (picked.length) sections.push({ kind: "city", title: `Города · ${picked.length}`, items: picked });
     }
 
@@ -1150,7 +1233,7 @@
       objectList.innerHTML = sections.map(renderSection).join("");
     }
 
-    fdChips.hidden = state.tab !== "regions";
+    fdChips.hidden = state.tab !== "regions" || state.mapScope === "world";
     updateDistrictChips();
     updateSelectFoundButton();
   }
@@ -1453,7 +1536,7 @@
     const count = state.activeRegions.size;
     bar.hidden = !count;
     if (!count) return;
-    document.getElementById("selection-bar-count").textContent = `${count} ${plural(count, "регион", "региона", "регионов")}`;
+    document.getElementById("selection-bar-count").textContent = `${count} ${state.mapScope === "world" ? plural(count,"страна","страны","стран") : plural(count, "регион", "региона", "регионов")}`;
     const color = activeColor();
     document.getElementById("active-color").value = color;
     const text = document.querySelector('[data-color-text-for="active-color"]');
@@ -1483,7 +1566,7 @@
 
   function afterSelectionChange(revealId) {
     updateRouteControls();
-    document.getElementById("selected-total").textContent = state.selectedRegions.size + state.selectedCities.size;
+    document.getElementById("selected-total").textContent = selectionCount();
     updateList();
     if (revealId) revealListItem(revealId);
     updateSelectionBar();
@@ -1513,6 +1596,26 @@
   }
 
   function bindControls() {
+    document.querySelectorAll("[data-map-scope]").forEach(button=>button.addEventListener("click",()=>{
+      if (state.mapScope === button.dataset.mapScope) return;
+      if (!datasets[button.dataset.mapScope]) { showToast("Мировой набор данных не загрузился"); return; }
+      state.mapScope=button.dataset.mapScope; state.query=""; state.tab="regions";
+      state.projection=state.mapScope==="world"?"globe":"conic";
+      state.lensLon=state.mapScope==="world"?35:defaults.lensLon; state.lensLat=state.mapScope==="world"?25:defaults.lensLat;
+      state.zoom=1; state.mapX=0; state.mapY=0; state.rotation=0; state.panX=0; state.panY=0; state.viewZoom=1;
+      if(state.mapScope==="world") state.globeSurface=true;
+      syncDataset(); syncControls(); updateList(); updateSelectionBar(); render(); saveState();
+    }));
+    bindCheck("globe-surface-enabled","globeSurface",render);
+    bindColor("ocean-color","oceanColor");
+    bindRange("globe-light-strength","globeLight","globe-light-value",v=>`${v}%`,Number);
+    bindRange("light-angle","lightAngle","light-angle-value",v=>`${v}°`,Number);
+    bindRange("lens-lon","lensLon","lens-lon-value",v=>`${v}°`,Number,true);
+    bindRange("lens-lat","lensLat","lens-lat-value",v=>`${v}°`,Number,true);
+    document.getElementById("globe-reference").addEventListener("click",()=>{
+      Object.assign(state,{globeSurface:true,globeLight:70,lightAngle:225,oceanColor:"#e4e5e4",gradient:false,fillStart:"#c5c8c7",borderColor:"#b4b8b7",borderWidth:.5,markerColor:"#d9ee63",selectedColor:"#d9ee63",labelStyle:"pill",labelBackground:"#ffffff",background:"#f6f6f6",routeColor:"#d9ee63",routeStyle:"dotted",lensStrength:0,cityFontSize:24,markerSize:8});
+      syncControls();render();saveState();
+    });
     [["label-style", "labelStyle"], ["route-mode", "routeMode"], ["route-style", "routeStyle"], ["route-hub", "routeHub"]].forEach(([id, key]) => {
       document.getElementById(id).addEventListener("change", event => { state[key] = event.target.value; updateRouteControls(); updateLabelModeControls(); restyle(); saveState(); });
     });
@@ -1855,6 +1958,7 @@
       if (activePointers.size > 2) return;
       panGesture = {
         pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
+        globeTurn: event.altKey && state.projection === "globe", lon: state.lensLon, lat: state.lensLat,
         panX: state.panX, panY: state.panY, mapX: state.mapX, mapY: state.mapY, moved: false
       };
       canvasViewport.classList.add("is-panning");
@@ -1896,6 +2000,13 @@
       const dx = event.clientX - panGesture.startX;
       const dy = event.clientY - panGesture.startY;
       if (!panGesture.moved && Math.hypot(dx, dy) > 4) { panGesture.moved = true; capturePointer(event.pointerId); }
+      if (panGesture.globeTurn) {
+        state.lensLon=((panGesture.lon-dx*.3+540)%360)-180;
+        state.lensLat=clamp(panGesture.lat+dy*.3,-85,85);
+        document.getElementById("lens-lon").value=state.lensLon; document.getElementById("lens-lat").value=state.lensLat;
+        document.getElementById("lens-lon-value").textContent=`${Math.round(state.lensLon)}°`; document.getElementById("lens-lat-value").textContent=`${Math.round(state.lensLat)}°`;
+        scheduleRender(); return;
+      }
       if (state.frame) {
         const k = slideUnitsPerPixel();
         state.mapX = clamp(panGesture.mapX + dx * k, NUMBER_RANGES.mapX[0], NUMBER_RANGES.mapX[1]);
@@ -1922,7 +2033,7 @@
       if (!panGesture || panGesture.pointerId !== event.pointerId) return;
       if (panGesture.moved) {
         suppressSelectionUntil = Date.now() + 160;
-        if (state.frame) saveState(); else persist();
+        if (state.frame || panGesture.globeTurn) saveState(); else persist();
       }
       panGesture = null;
       canvasViewport.classList.remove("is-panning");
@@ -1970,7 +2081,6 @@
   }
 
   function setProjection(value) {
-    if (value === "globe" && state.mapStyle === "mosaic") return;
     state.projection = value;
     render(); saveState();
   }
@@ -2185,8 +2295,8 @@
     ["marker-shape-row", "marker-size-row", "marker-outline-row"].forEach(id => { document.getElementById(id).hidden = mosaic; });
     document.querySelectorAll('[data-projection="globe"], [data-quick-projection="globe"]').forEach(el => {
       if (el.dataset.title === undefined) el.dataset.title = el.title;
-      el.disabled = mosaic;
-      el.title = mosaic ? "Глобус недоступен в стиле «Мозаика»" : el.dataset.title;
+      el.disabled = false;
+      el.title = el.dataset.title;
     });
   }
 
@@ -2228,6 +2338,7 @@
 
   function syncControls() {
     const pairs = {
+      "globe-surface-enabled":state.globeSurface,"ocean-color":state.oceanColor,"globe-light-strength":state.globeLight,"light-angle":state.lightAngle,"lens-lon":state.lensLon,"lens-lat":state.lensLat,
       "label-style": state.labelStyle, "label-background": state.labelBackground, "route-mode": state.routeMode, "route-style": state.routeStyle,
       "route-color": state.routeColor, "route-width": state.routeWidth, "route-bend": state.routeBend,
       "dot-pitch": state.dotPitch, "dot-size": state.dotSize, "dot-field": state.dotField, "dot-field-color": state.dotFieldColor,
@@ -2248,6 +2359,8 @@
       if (!el) return;
       if (el.type === "checkbox") el.checked = value; else el.value = value;
     });
+    document.querySelectorAll("[data-map-scope]").forEach(b=>b.classList.toggle("is-active",b.dataset.mapScope===state.mapScope));
+    for (const [id,value,suffix] of [["globe-light-value",state.globeLight,"%"],["light-angle-value",state.lightAngle,"°"],["lens-lon-value",state.lensLon,"°"],["lens-lat-value",state.lensLat,"°"]]) document.getElementById(id).textContent=`${Math.round(value)}${suffix}`;
     document.querySelectorAll("[data-color-text-for]").forEach(textInput => {
       const colorInput = document.getElementById(textInput.dataset.colorTextFor);
       textInput.value = colorInput.value.toUpperCase();
@@ -2272,7 +2385,7 @@
     document.querySelectorAll("[data-ratio]").forEach(el => el.classList.toggle("is-active", el.dataset.ratio === state.ratio));
     syncTabs();
     document.getElementById("search").value = state.query;
-    document.getElementById("selected-total").textContent = state.selectedRegions.size + state.selectedCities.size;
+    document.getElementById("selected-total").textContent = selectionCount();
   }
 
   function resetAll() {
@@ -2280,7 +2393,7 @@
     state.query = "";
     state.selectedRegions.clear(); state.selectedCities.clear(); state.cityLabelOffsets = {};
     state.regionColors = {}; state.activeRegions.clear(); state.mapSelected = false;
-    syncControls(); updateCanvasSize(); updateList(); updateSelectionBar(); render(); saveState();
+    syncDataset(); syncControls(); updateCanvasSize(); updateList(); updateSelectionBar(); render(); saveState();
     showToast("Настройки сброшены · ⌘Z вернёт всё обратно");
   }
 
@@ -2303,8 +2416,8 @@
       const settings = sanitizeSettings(saved);
       Object.keys(defaults).forEach(key => state[key] = settings[key]);
       enforceStyleRules();
-      state.selectedRegions = new Set(sanitizeIds(saved.selectedRegions, regionIds, features.length));
-      state.selectedCities = new Set(sanitizeIds(saved.selectedCities, cityIds, cities.length));
+      state.selectedRegions = new Set(sanitizeIds(saved.selectedRegions, regionIds, regionIds.size));
+      state.selectedCities = new Set(sanitizeIds(saved.selectedCities, cityIds, cityIds.size));
       state.cityLabelOffsets = sanitizeOffsets(saved.cityLabelOffsets, cityIds);
       state.regionColors = sanitizeColors(saved.regionColors, regionIds);
     } catch (_) {
@@ -2355,8 +2468,8 @@
     const raw = JSON.parse(json);
     applyDocument({
       settings: sanitizeSettings(raw.settings),
-      regions: sanitizeIds(raw.selection?.regions, regionIds, features.length),
-      cities: sanitizeIds(raw.selection?.cities, cityIds, cities.length),
+      regions: sanitizeIds(raw.selection?.regions, regionIds, regionIds.size),
+      cities: sanitizeIds(raw.selection?.cities, cityIds, cityIds.size),
       labelOffsets: sanitizeOffsets(raw.labelOffsets, cityIds),
       regionColors: sanitizeColors(raw.regionColors, regionIds)
     }, { keepView: true });
@@ -2422,14 +2535,14 @@
     catch (_) { throw new Error("это не корректный JSON"); }
     if (!isPlainRecord(raw) || hasBlockedKeys(raw)) throw new Error("неверная структура проекта");
     if (raw.format !== PROJECT_FORMAT) throw new Error("файл создан не этим редактором");
-    if (raw.version !== PROJECT_VERSION) throw new Error(`версия проекта ${String(raw.version)} не поддерживается`);
+    if (raw.version !== 1 && raw.version !== PROJECT_VERSION) throw new Error(`версия проекта ${String(raw.version)} не поддерживается`);
     if (!isPlainRecord(raw.settings) || !isPlainRecord(raw.selection) || hasBlockedKeys(raw.settings) || hasBlockedKeys(raw.selection)) {
       throw new Error("неверная структура настроек");
     }
     return {
       settings: sanitizeSettings(raw.settings, true),
-      regions: sanitizeIds(raw.selection.regions, regionIds, features.length, true),
-      cities: sanitizeIds(raw.selection.cities, cityIds, cities.length, true),
+      regions: sanitizeIds(raw.selection.regions, regionIds, regionIds.size, true),
+      cities: sanitizeIds(raw.selection.cities, cityIds, cityIds.size, true),
       labelOffsets: sanitizeOffsets(raw.labelOffsets, cityIds, true),
       regionColors: sanitizeColors(raw.regionColors, regionIds, true)
     };
@@ -2525,6 +2638,7 @@
   function applyDocument(project, { keepView = false } = {}) {
     const view = { viewZoom: state.viewZoom, panX: state.panX, panY: state.panY };
     PROJECT_SETTING_KEYS.forEach(key => state[key] = project.settings[key]);
+    syncDataset();
     enforceStyleRules();
     if (keepView) Object.assign(state, view);
     state.selectedRegions = new Set(project.regions);
@@ -2692,8 +2806,8 @@
     const dataUri = svgToDataUri(vector.xml);
     const pptx = new PptxGenJS();
     pptx.author = "Редактор карты России · map.kachkovenko.com";
-    pptx.subject = "Карта России";
-    pptx.title = "Карта России";
+    pptx.subject = state.mapScope === "world" ? "Карта мира" : "Карта России";
+    pptx.title = pptx.subject;
     pptx.company = "map.kachkovenko.com";
     pptx.lang = "ru-RU";
     pptx.layout = state.ratio === "4:3" ? "LAYOUT_4X3" : "LAYOUT_WIDE";
@@ -2708,9 +2822,11 @@
       if (imageRatio > slideRatio) { w = slideW; h = w / imageRatio; y = (slideH - h) / 2; }
       else { h = slideH; w = h * imageRatio; x = (slideW - w) / 2; }
     }
-    slide.addImage({ data: dataUri, x, y, w, h, altText: "Карта России" });
+    slide.addImage({ data: dataUri, x, y, w, h, altText: state.mapScope === "world" ? "Карта мира" : "Карта России" });
     addEditableLabels(slide, vector, { x, y, w, h, slideW, slideH });
-    slide.addNotes("Создано в редакторе карты России (map.kachkovenko.com). Состав субъектов — по статье 65 Конституции РФ. Часть показанных границ международно оспаривается.");
+    slide.addNotes(state.mapScope === "world"
+      ? "Создано в map.kachkovenko.com. Страны и территории: GeoJSON Atlas / Natural Earth (CC0 / public domain). Границы РФ согласованы с российским режимом редактора. Принадлежность и границы части территорий международно оспариваются. Карта обзорная, не юридическая."
+      : "Создано в редакторе карты России (map.kachkovenko.com). Состав субъектов — по статье 65 Конституции РФ. Часть показанных границ международно оспаривается.");
     const [pptxBlob, pngFallback] = await Promise.all([
       pptx.write({ outputType: "blob", compression: true }),
       renderPng(1, vector)
@@ -2758,7 +2874,7 @@
     if (state.cityLabels) {
       cities.forEach(city => {
         if (!state.selectedCities.has(city.id) || !city.point || !city.label) return;
-        place(city.name, city.point[0] + city.label.dx, city.point[1] + city.label.dy, city.label.anchor, state.cityFontSize, state.markerColor);
+        place(city.name, city.point[0] + city.label.dx, city.point[1] + city.label.dy, city.label.anchor, state.cityFontSize, state.labelStyle === "pill" ? "#29303c" : state.markerColor);
       });
     }
   }
@@ -2818,7 +2934,7 @@
   function exportStem() {
     const now = new Date();
     const pad = n => String(n).padStart(2, "0");
-    return `karta-rossii-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+    return `${state.mapScope === "world" ? "karta-mira" : "karta-rossii"}-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
   }
   function exportFilename(extension) { return `${exportStem()}.${extension}`; }
   function downloadBlob(blob, filename) {
@@ -2837,6 +2953,7 @@
   }
   function paddedBounds(b, pad) { return { x: b.x - pad, y: b.y - pad, width: Math.max(1, b.width + pad * 2), height: Math.max(1, b.height + pad * 2) }; }
   function normalize(value) { return String(value || "").toLocaleLowerCase("ru").replace(/ё/g, "е").trim(); }
+  function selectionCount() { return features.filter(f=>state.selectedRegions.has(f.properties.id)).length + cities.filter(c=>state.selectedCities.has(c.id)).length; }
   function normalizeHex(value, allowShort) {
     const raw = String(value || "").trim().replace(/^#/, "");
     if (/^[0-9a-fA-F]{6}$/.test(raw)) return `#${raw.toLowerCase()}`;

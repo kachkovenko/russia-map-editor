@@ -3,7 +3,11 @@
   "private": true,
   "scripts": {
     "build:regions": "node scripts/build-regions.mjs",
-    "check:regions": "node scripts/check-regions.mjs"
+    "check:regions": "node scripts/check-regions.mjs",
+    "build:world": "node scripts/build-world.mjs",
+    "build:world-cities": "node scripts/build-world-cities.mjs",
+    "check:routes": "node scripts/check-routes.cjs",
+    "check:world": "node scripts/check-world.cjs"
   },
   "devDependencies": {
     "topojson-client": "3.1.0",

@@ -81,6 +81,8 @@
           <button class="icon-button close-mobile" data-close-panel aria-label="Закрыть">×</button>
         </div>
 
+        <div class="segmented scope-switch" role="group" aria-label="Охват карты"><button type="button" data-map-scope="russia" class="is-active">Россия</button><button type="button" data-map-scope="world">Весь мир</button></div>
+        <details id="world-info" class="world-info" hidden><summary>О городах и границах</summary><p>Страны и территории по Natural Earth; границы РФ согласованы с российским режимом. Принадлежность Крыма и других включённых спорных территорий международно оспаривается. Геометрия обзорная, не юридическая.</p><p>В каталоге — российские города и основные города и столицы мира, не все населённые пункты планеты.</p></details>
         <label class="search-field">
           <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
           <input id="search" type="search" placeholder="Регион или город" autocomplete="off">
@@ -88,7 +90,7 @@
         </label>
 
         <div class="tabs" role="tablist">
-          <button class="tab is-active" data-tab="regions" role="tab" aria-selected="true">Регионы <span id="regions-count">89</span></button>
+          <button class="tab is-active" data-tab="regions" role="tab" aria-selected="true"><span id="regions-tab-label">Регионы</span> <span id="regions-count">89</span></button>
           <button class="tab" data-tab="cities" role="tab" aria-selected="false">Города <span id="cities-count">—</span></button>
           <button class="tab" data-tab="selected" role="tab" aria-selected="false">Выбрано <span id="selected-total">0</span></button>
         </div>
@@ -119,6 +121,9 @@
           <div class="artboard" id="artboard">
             <svg id="map" role="img" aria-label="Редактируемая карта России" xmlns="http://www.w3.org/2000/svg">
               <defs>
+                <clipPath id="globe-clip"><path></path></clipPath>
+                <radialGradient id="globe-shade" cx="36%" cy="28%" r="75%"><stop offset="0%" stop-color="#000000" stop-opacity="0"/><stop offset="45%" stop-color="#000000" stop-opacity="0"/><stop offset="100%" stop-color="#17243a" stop-opacity=".55"/></radialGradient>
+                <radialGradient id="globe-gloss" cx="30%" cy="22%" r="68%"><stop offset="0%" stop-color="#ffffff" stop-opacity=".9"/><stop offset="38%" stop-color="#ffffff" stop-opacity=".3"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
                 <linearGradient id="land-gradient" gradientUnits="userSpaceOnUse">
                   <stop class="land-stop-start" offset="0%"></stop>
                   <stop class="land-stop-end" offset="100%"></stop>
@@ -137,10 +142,12 @@
               </defs>
               <rect class="export-background" id="export-background"></rect>
               <g id="export-content">
-                <g id="dots-layer" display="none"><path class="dots dots--field"></path></g>
+                <path id="globe-surface" pointer-events="none" display="none"></path>
+                <g id="globe-dots-clip"><g id="dots-layer" display="none"><path class="dots dots--field"></path></g></g>
                 <g id="regions-layer"></g>
                 <path id="country-outline" class="country-outline"></path>
                 <path id="graticule" class="graticule" display="none"></path>
+                <g id="globe-light" pointer-events="none" display="none"><path fill="url(#globe-shade)"></path><path fill="url(#globe-gloss)"></path></g>
                 <g id="routes-layer" pointer-events="none"></g>
                 <g id="region-label-backgrounds" pointer-events="none"></g>
                 <g id="region-labels"></g>
@@ -350,7 +357,7 @@
               <label class="select-row"><span>Линия</span><select id="route-style"><option value="solid">Сплошная</option><option value="dashed">Штриховая</option><option value="dotted">Пунктирная</option></select></label>
               <label class="color-row"><span>Цвет линии</span><span class="swatch"><input id="route-color" type="color" value="#4263eb"><input class="hex-input" data-color-text-for="route-color" value="#4263EB" maxlength="7" aria-label="HEX-код связей" spellcheck="false"></span></label>
               <label class="range-row"><span>Толщина <output id="route-width-value">2 px</output></span><input id="route-width" type="range" min="0.5" max="8" step="0.5" value="2"></label>
-              <label class="range-row"><span>Изгиб <output id="route-bend-value">25%</output></span><input id="route-bend" type="range" min="0" max="70" value="25"></label>
+              <label class="range-row" id="route-bend-row"><span>Изгиб <output id="route-bend-value">25%</output></span><input id="route-bend" type="range" min="0" max="70" value="25"></label>
               <p class="microcopy" id="route-hint"></p>
               <ol class="route-order" id="route-order" aria-label="Порядок городов в цепочке" hidden></ol>
             </div>
@@ -367,6 +374,16 @@
                 <button data-projection="globe" title="Карта на глобусе, вид сверху из точки обзора"><i class="projection-icon projection-icon--globe"></i><span>Глобус</span></button>
               </div>
               <p class="microcopy projection-help" id="projection-help">Равновеликая проекция: площади регионов сравниваются корректнее.</p>
+              <div class="globe-only" hidden>
+                <button type="button" class="button button--secondary" id="globe-reference">Светлый глобус · как в референсе</button>
+                <label class="switch-row"><span>Поверхность глобуса</span><input class="switch" id="globe-surface-enabled" type="checkbox"></label>
+                <label class="color-row"><span>Цвет океана</span><span class="swatch"><input id="ocean-color" type="color" value="#e5e7eb"><input class="hex-input" data-color-text-for="ocean-color" value="#E5E7EB" maxlength="7" aria-label="HEX-код океана" spellcheck="false"></span></label>
+                <label class="range-row"><span>Освещение и блик <output id="globe-light-value">65%</output></span><input id="globe-light-strength" type="range" min="0" max="100" value="65"></label>
+                <label class="range-row"><span>Направление света <output id="light-angle-value">225°</output></span><input id="light-angle" type="range" min="0" max="360" value="225"></label>
+                <label class="range-row"><span>Долгота обзора <output id="lens-lon-value">91°</output></span><input id="lens-lon" type="range" min="-180" max="180" step="1" value="91"></label>
+                <label class="range-row"><span>Широта обзора <output id="lens-lat-value">65°</output></span><input id="lens-lat" type="range" min="-85" max="85" step="1" value="65"></label>
+                <p class="microcopy">Alt + перетаскивание вращает глобус. Обычное перетаскивание перемещает карту.</p>
+              </div>
               <label class="range-row"><span>Поворот <output id="rotation-value">0°</output></span><span class="range-track" style="--ticks: 6"><input id="rotation" type="range" min="-45" max="45" value="0"></span></label>
               <label class="range-row globe-only" hidden><span>Перспектива <output id="lens-strength-value">55%</output></span><span class="range-track" style="--ticks: 4"><input id="lens-strength" type="range" min="0" max="100" value="55"></span></label>
               <label class="switch-row"><span>Градусная сетка</span><input class="switch" id="graticule-enabled" type="checkbox"></label>
@@ -408,6 +425,8 @@
   <script src="lib/pptxgen.bundle.js"></script>
   <script src="data/regions.topojson.js"></script>
   <script src="data/cities.js"></script>
+  <script src="data/world.topojson.js"></script>
+  <script src="data/world-cities.js"></script>
   <script src="lib/map-routes.js"></script>
   <script src="app.js"></script>
 </body>
