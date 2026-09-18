@@ -161,9 +161,13 @@ const features = metadata.map(properties => {
 const collection = { type: "FeatureCollection", features };
 let output = topology({ ru89: collection }, 100000);
 output = presimplify(output);
-// Remove the least significant 92% of intermediate points. Endpoints and
-// shared boundaries remain intact, which keeps small federal cities usable.
-output = simplify(output, quantile(output, 0.08));
+// Keep the most significant share of intermediate points (`--detail 0.3` = 30 %, by Visvalingam weight; the
+// quantile helper sorts weights descending, so the share maps to p directly). Endpoints and shared boundaries remain
+// intact, which keeps small federal cities usable. 0.08 gave 340 KB and visibly straight coastlines at 4× zoom.
+const detailFlag = process.argv.indexOf("--detail");
+const DETAIL = detailFlag >= 0 ? Number(process.argv[detailFlag + 1]) : 0.2;
+output = simplify(output, quantile(output, DETAIL));
+console.log(`Detail: kept ${Math.round(DETAIL * 100)}% of intermediate points.`);
 
 const json = JSON.stringify(output);
 await writeFile(join(ROOT, "data/regions.topojson"), `${json}\n`);

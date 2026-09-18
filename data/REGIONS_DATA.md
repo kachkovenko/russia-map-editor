@@ -30,7 +30,7 @@ The build script performs the following deterministic transformation:
 3. Selects the Donetsk, Lugansk, Zaporozhye and Kherson first-level geometries from `UA.geojson`.
 4. Discards every upstream attribute. Only polygon geometry is retained.
 5. Adds the project's own stable IDs and Russian-language metadata from `regions.metadata.json`.
-6. Builds quantised TopoJSON and simplifies shared arcs while preserving topology.
+6. Builds quantised TopoJSON and simplifies shared arcs while preserving topology. By default the 20 % most significant intermediate points are kept (`--detail 0.2`, Visvalingam weight); 8 % used to be enough for the fitted map but left coastlines visibly polygonal at 4× zoom, 30 % starts to show the source's own micro-inlets as noise.
 7. Checks the feature count, IDs, required properties, the six specifically represented regions, critical shared boundaries and the merged outer outline.
 
 Run:
