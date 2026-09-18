@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#171717">
+  <meta name="theme-color" content="#f5f5fa">
   <title>Редактор карты России</title>
   <meta name="description" content="Онлайн-редактор карты России для презентаций: регионы, города, цвета, проекции и экспорт в PNG, SVG и PPTX.">
   <link rel="stylesheet" href="styles.css">
@@ -37,11 +37,13 @@
         </svg>
       </a>
       <div class="document-title">
+        <span class="document-title__category">Редактор карт</span>
+        <svg class="ui-icon document-title__separator" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
         <span class="document-title__name">Карта России</span>
       </div>
       <div class="top-actions">
-        <button class="icon-button mobile-panel-toggle" id="open-library" aria-label="Открыть выбор объектов">⌕</button>
-        <button class="icon-button mobile-panel-toggle" id="open-inspector" aria-label="Открыть настройки карты">✦</button>
+        <button class="icon-button mobile-panel-toggle" id="open-library" aria-label="Открыть выбор объектов"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg></button>
+        <button class="icon-button mobile-panel-toggle" id="open-inspector" aria-label="Открыть настройки карты"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h7m4 0h5M4 17h3m4 0h9"/><circle cx="13" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
         <div class="history-buttons" aria-label="История изменений">
           <button class="icon-button history-button" id="undo" title="Отменить (⌘Z)" aria-label="Отменить" disabled><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M7.7,15.007a1.5,1.5,0,0,1-2.121,0L.858,10.282a2.932,2.932,0,0,1,0-4.145L5.583,1.412A1.5,1.5,0,0,1,7.7,3.533L4.467,6.7l14.213,0A5.325,5.325,0,0,1,24,12.019V18.7a5.323,5.323,0,0,1-5.318,5.318H5.318a1.5,1.5,0,1,1,0-3H18.681A2.321,2.321,0,0,0,21,18.7V12.019A2.321,2.321,0,0,0,18.68,9.7L4.522,9.7,7.7,12.886A1.5,1.5,0,0,1,7.7,15.007Z"/></svg></button>
           <button class="icon-button history-button history-button--redo" id="redo" title="Повторить (⇧⌘Z)" aria-label="Повторить" disabled><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M7.7,15.007a1.5,1.5,0,0,1-2.121,0L.858,10.282a2.932,2.932,0,0,1,0-4.145L5.583,1.412A1.5,1.5,0,0,1,7.7,3.533L4.467,6.7l14.213,0A5.325,5.325,0,0,1,24,12.019V18.7a5.323,5.323,0,0,1-5.318,5.318H5.318a1.5,1.5,0,1,1,0-3H18.681A2.321,2.321,0,0,0,21,18.7V12.019A2.321,2.321,0,0,0,18.68,9.7L4.522,9.7,7.7,12.886A1.5,1.5,0,0,1,7.7,15.007Z"/></svg></button>
@@ -75,12 +77,12 @@
     <div class="workspace">
       <aside class="library panel-column" id="library-panel">
         <div class="panel-head">
-          <h1>Регионы и города</h1>
+          <div><p class="panel-eyebrow">Библиотека</p><h1>Регионы и города</h1></div>
           <button class="icon-button close-mobile" data-close-panel aria-label="Закрыть">×</button>
         </div>
 
         <label class="search-field">
-          <span aria-hidden="true">⌕</span>
+          <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
           <input id="search" type="search" placeholder="Регион или город" autocomplete="off">
           <kbd>⌘ K</kbd>
         </label>
@@ -91,6 +93,7 @@
           <button class="tab" data-tab="selected" role="tab" aria-selected="false">Выбрано <span id="selected-total">0</span></button>
         </div>
 
+        <div class="library-caption">Федеральные округа</div>
         <div class="fd-chips" id="fd-chips" aria-label="Федеральные округа"></div>
 
         <div class="selection-summary">
@@ -100,13 +103,15 @@
         </div>
 
         <div class="object-list" id="object-list" aria-live="polite"></div>
+        <div class="library-note"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 3 14 9-7 1-3 7Z"/></svg><span>Отмечайте объекты в списке<br>или прямо на карте</span></div>
       </aside>
 
       <main class="stage" id="stage">
+        <div class="stage-heading" aria-hidden="true"><span class="stage-heading__dot"></span>Рабочая область</div>
         <div class="stage-toolbar">
           <div class="view-switch" aria-label="Вид карты">
-            <button class="is-active" data-quick-projection="conic">Плоская</button>
-            <button data-quick-projection="globe">Глобус</button>
+            <button class="is-active" data-quick-projection="conic"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2Zm6-2v14m6-12v14"/></svg>Плоская</button>
+            <button data-quick-projection="globe"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg>Глобус</button>
           </div>
         </div>
 
@@ -170,7 +175,7 @@
         <div class="map-controls">
           <button id="zoom-out" aria-label="Уменьшить">−</button>
           <button id="zoom-in" aria-label="Увеличить">+</button>
-          <button id="fit-map">Вписать</button>
+          <button id="fit-map"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5"/></svg>Вписать</button>
         </div>
         <div class="selection-bar" id="selection-bar" hidden>
           <span class="selection-bar__count" id="selection-bar-count">1 регион</span>
@@ -185,7 +190,7 @@
 
       <aside class="inspector panel-column" id="inspector-panel">
         <div class="panel-head">
-          <h2>Настройки карты</h2>
+          <div><p class="panel-eyebrow">Свойства</p><h2>Настройки карты</h2></div>
           <button class="icon-button close-mobile" data-close-panel aria-label="Закрыть">×</button>
         </div>
 
@@ -194,8 +199,8 @@
           <div class="section-body" id="section-style">
             <div class="section-body__inner">
               <div class="projection-grid style-grid" role="group" aria-label="Стиль карты">
-                <button class="is-active" data-map-style="atlas" title="Сплошная заливка регионов"><i class="projection-icon style-icon--atlas"></i><span>Атлас</span></button>
-                <button data-map-style="mosaic" title="Регионы набраны сеткой точек"><i class="projection-icon style-icon--mosaic"></i><span>Мозаика</span></button>
+                <button class="is-active" data-map-style="atlas" title="Сплошная заливка регионов"><svg class="style-preview" viewBox="0 0 100 48" aria-hidden="true"><path d="m8 21 13-10 13 4 10-9 17 5 8-6 21 12-6 15-17 1-12 9-16-7-15 4-9-9Z" fill="currentColor"/><path d="m34 15 5 20m5-29 11 36m14-37-2 28M8 21l82-4" fill="none" stroke="white" stroke-width="1.5"/></svg><span>Атлас</span><small>Сплошная карта</small></button>
+                <button data-map-style="mosaic" title="Регионы набраны сеткой точек"><svg class="style-preview" viewBox="0 0 100 48" aria-hidden="true"><defs><pattern id="style-dot-preview" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="1.8" fill="currentColor"/></pattern></defs><path d="m8 21 13-10 13 4 10-9 17 5 8-6 21 12-6 15-17 1-12 9-16-7-15 4-9-9Z" fill="url(#style-dot-preview)"/></svg><span>Мозаика</span><small>Карта из точек</small></button>
               </div>
               <p class="microcopy projection-help" id="style-help">Сплошная заливка регионов, границы и контур страны.</p>
               <div class="sub-options" id="mosaic-options" hidden>
@@ -221,12 +226,6 @@
                   <label class="color-row"><span>Цвет поля</span><span class="swatch"><input id="dot-field-color" type="color" value="#d6d3cb"><input class="hex-input" data-color-text-for="dot-field-color" value="#D6D3CB" maxlength="7" aria-label="HEX-код точек вокруг страны" spellcheck="false"></span></label>
                 </div>
               </div>
-              <div class="preset-row" role="group" aria-label="Готовые стили (скоро)">
-                <button type="button" disabled><i style="--a:#3b5f8a;--b:#b9cad8"></i><span>Чернила</span></button>
-                <button type="button" disabled><i style="--a:#8a7d62;--b:#e6dcc4"></i><span>Пергамент</span></button>
-                <button type="button" disabled><i style="--a:#15171b;--b:#566171"></i><span>Ночь</span></button>
-              </div>
-              <p class="microcopy">Готовые стили — скоро: заливка, границы, подписи и фон одной кнопкой.</p>
             </div>
           </div>
         </section>
