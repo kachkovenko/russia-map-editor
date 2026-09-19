@@ -160,6 +160,8 @@ kbd { padding: 2px 6px; color: var(--faint); border: 1px solid var(--line); bord
 .object-copy small { margin-top: 2px; color: var(--faint); font-size: 11.5px; }
 .object-meta { padding: 2px 4px; border-radius: 4px; color: var(--faint); background: var(--field); font-size: 9px; font-weight: 400; }
 .empty-state { padding: 30px 12px; color: var(--muted); text-align: center; font-size: 12.5px; line-height: 1.55; }
+.empty-state__action { margin-top: 8px; padding: 0; border: 0; color: var(--accent); background: transparent; font-size: 12.5px; cursor: pointer; }
+.empty-state__action:hover { text-decoration: underline; }
 
 /* Infinite board: a dot grid that pans and zooms with the artboard (see applyCanvasTransform). */
 .stage {
@@ -169,8 +171,6 @@ kbd { padding: 2px 6px; color: var(--faint); border: 1px solid var(--line); bord
   background-size: var(--grid-size) var(--grid-size);
   background-position: calc(var(--grid-x) + var(--grid-size) / 2) calc(var(--grid-y) + var(--grid-size) / 2);
 }
-.stage-heading { position: absolute; top: 32px; left: 28px; display: flex; align-items: center; gap: 8px; color: var(--faint); font-size: 11px; }
-.stage-heading__dot { width: 5px; height: 5px; border-radius: 50%; background: #a8afc4; }
 .stage-toolbar { position: absolute; z-index: 5; top: 20px; right: 24px; display: flex; align-items: center; gap: 18px; }
 .view-switch { display: flex; gap: 3px; padding: 4px; border-radius: var(--radius); background: var(--panel); box-shadow: 0 2px 8px rgba(32,39,76,.04), 0 0 0 1px var(--line); }
 .view-switch button { display: flex; align-items: center; gap: 7px; padding: 8px 12px; border: 0; border-radius: 7px; color: var(--muted); background: transparent; font-size: 11px; font-weight: 500; cursor: pointer; }
@@ -381,7 +381,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px 
 @media (max-width: 1100px) {
   .workspace { grid-template-columns: 250px minmax(0, 1fr) 296px; }
   .topbar { grid-template-columns: 230px 1fr auto; }
-  .document-title__category, .document-title__separator, .stage-heading { display: none; }
+  .document-title__category, .document-title__separator { display: none; }
   .canvas-viewport { inset-inline: 24px; }
   .stage-toolbar { left: 50%; right: auto; transform: translateX(-50%); }
   #cursor-geo, #cursor-geo-sep { display: none; }

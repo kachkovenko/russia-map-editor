@@ -1197,33 +1197,40 @@
   function updateList() {
     const query = normalize(state.query);
     const sections = [];
+    const regionsTitle = state.mapScope === "world" ? "Страны" : "Регионы";
     foundForSelect = null;
 
-    if (state.tab === "regions") {
-      const items = features.filter(f => regionMatches(f, query));
-      sections.push({ kind: "region", items });
-      if (query && items.length) foundForSelect = { kind: "region", ids: items.map(f => f.properties.id) };
-    } else if (state.tab === "cities") {
-      const items = cities.filter(c => cityMatches(c, query));
-      if (query) {
-        sections.push({ kind: "city", items });
-        if (items.length) foundForSelect = { kind: "city", ids: items.map(c => c.id) };
-      } else {
-        sections.push({ kind: "city", title: "Крупнейшие города", items: topCities });
-        sections.push({ kind: "city", title: "Все города по алфавиту", items });
-      }
-    } else {
+    if (state.tab === "selected") {
       const regions = features.filter(f => state.selectedRegions.has(f.properties.id) && regionMatches(f, query));
       const picked = cities.filter(c => state.selectedCities.has(c.id) && cityMatches(c, query));
-      if (regions.length) sections.push({ kind: "region", title: `${state.mapScope === "world" ? "Страны" : "Регионы"} · ${regions.length}`, items: regions });
+      if (regions.length) sections.push({ kind: "region", title: `${regionsTitle} · ${regions.length}`, items: regions });
       if (picked.length) sections.push({ kind: "city", title: `Города · ${picked.length}`, items: picked });
+    } else if (query) {
+      // The field promises «регион или город», so a query looks through both kinds whichever tab is open;
+      // the open tab's kind is listed first.
+      const regions = features.filter(f => regionMatches(f, query));
+      const found = cities.filter(c => cityMatches(c, query));
+      const groups = [
+        { kind: "region", title: `${regionsTitle} · ${regions.length}`, items: regions },
+        { kind: "city", title: `Города · ${found.length}`, items: found }
+      ];
+      if (state.tab === "cities") groups.reverse();
+      sections.push(...groups.filter(group => group.items.length));
+      if (sections.length) foundForSelect = { regions: regions.map(f => f.properties.id), cities: found.map(c => c.id) };
+    } else if (state.tab === "regions") {
+      sections.push({ kind: "region", items: features });
+    } else {
+      sections.push({ kind: "city", title: "Крупнейшие города", items: topCities });
+      sections.push({ kind: "city", title: "Все города по алфавиту", items: cities });
     }
 
     const total = sections.reduce((sum, section) => sum + section.items.length, 0);
     if (!total) {
-      objectList.innerHTML = query
-        ? '<div class="empty-state">Ничего не найдено.<br>Попробуйте изменить запрос.</div>'
-        : '<div class="empty-state">Пока ничего не выбрано.<br>Кликните регион на карте или отметьте его в списке.</div>';
+      objectList.innerHTML = !query
+        ? `<div class="empty-state">Пока ничего не выбрано.<br>Кликните ${state.mapScope === "world" ? "страну" : "регион"} на карте или отметьте в списке.</div>`
+        : state.tab === "selected"
+          ? `<div class="empty-state">Среди выбранных ничего не найдено.<br><button type="button" class="empty-state__action" data-search-all>Искать по всем ${state.mapScope === "world" ? "странам" : "регионам"} и городам</button></div>`
+          : '<div class="empty-state">Ничего не найдено.<br>Попробуйте изменить запрос.</div>';
     } else {
       objectList.innerHTML = sections.map(renderSection).join("");
     }
@@ -1285,27 +1292,27 @@
     afterSelectionChange();
   }
 
+  function foundAllSelected() {
+    return foundForSelect.regions.every(id => state.selectedRegions.has(id))
+      && foundForSelect.cities.every(id => state.selectedCities.has(id));
+  }
+
   function updateSelectFoundButton() {
     if (!foundForSelect) { selectFoundButton.hidden = true; return; }
-    const set = foundForSelect.kind === "region" ? state.selectedRegions : state.selectedCities;
-    const allSelected = foundForSelect.ids.every(id => set.has(id));
+    const count = foundForSelect.regions.length + foundForSelect.cities.length;
     selectFoundButton.hidden = false;
-    selectFoundButton.textContent = allSelected
-      ? `Снять найденные (${foundForSelect.ids.length})`
-      : `Выбрать найденные (${foundForSelect.ids.length})`;
+    selectFoundButton.textContent = foundAllSelected() ? `Снять найденные (${count})` : `Выбрать найденные (${count})`;
   }
 
   function selectFound() {
     if (!foundForSelect) return;
-    const isRegion = foundForSelect.kind === "region";
-    const set = isRegion ? state.selectedRegions : state.selectedCities;
-    const allSelected = foundForSelect.ids.every(id => set.has(id));
-    foundForSelect.ids.forEach(id => {
-      if (isRegion) setRegionMarked(id, !allSelected);
-      else if (allSelected) { set.delete(id); delete state.cityLabelOffsets[id]; }
-      else set.add(id);
+    const allSelected = foundAllSelected();
+    foundForSelect.regions.forEach(id => setRegionMarked(id, !allSelected));
+    foundForSelect.cities.forEach(id => {
+      if (allSelected) { state.selectedCities.delete(id); delete state.cityLabelOffsets[id]; }
+      else state.selectedCities.add(id);
     });
-    if (!isRegion && !allSelected) state.cityLabels = true;
+    if (foundForSelect.cities.length && !allSelected) state.cityLabels = true;
     afterSelectionChange();
   }
 
@@ -1670,6 +1677,10 @@
       const item = event.target.closest(".object-item");
       if (!item) return;
       item.dataset.kind === "region" ? toggleRegion(item.dataset.objectId) : toggleCity(item.dataset.objectId);
+    });
+    objectList.addEventListener("click", event => {
+      if (!event.target.closest("[data-search-all]")) return;
+      state.tab = "regions"; syncTabs(); updateList(); persist();
     });
     objectList.addEventListener("mouseover", event => {
       const item = event.target.closest(".object-item");
