@@ -625,11 +625,23 @@
     updateLensFocus();
     document.querySelectorAll("[data-projection]").forEach(el => el.classList.toggle("is-active", el.dataset.projection === state.projection));
     document.querySelectorAll("[data-quick-projection]").forEach(el => el.classList.toggle("is-active", (state.projection === "globe" ? "globe" : "conic") === el.dataset.quickProjection));
-    document.querySelectorAll(".globe-only").forEach(el => el.hidden = state.projection !== "globe");
+    updateConditionalVisibility();
     document.getElementById("projection-help").textContent = state.projection === "globe" && (state.mapScope === "world" || state.globeSurface)
       ? "Вид на сферу. Меняйте точку обзора ползунками или Alt-перетаскиванием. Перспектива задаёт высоту наблюдателя; города за горизонтом скрыты."
       : state.mapScope === "world" && state.projection === "conic" ? "Equal Earth: равновеликая карта всего мира." : PROJECTION_HELP[state.projection];
     document.getElementById("route-bend-row").hidden = state.mapScope === "world" || state.projection === "globe";
+  }
+
+  function updateConditionalVisibility() {
+    const globe = state.projection === "globe";
+    document.querySelectorAll(".globe-only").forEach(el => { el.hidden = !globe; });
+    document.querySelectorAll(".globe-surface-only").forEach(el => { el.hidden = !globe || !state.globeSurface; });
+    const lighting = document.getElementById("section-lighting");
+    if (lighting) {
+      lighting.closest(".control-section").classList.toggle("is-disabled", !state.globeSurface);
+      lighting.querySelectorAll("input, select, button").forEach(el => { el.disabled = !state.globeSurface; });
+      document.getElementById("lighting-disabled-hint").hidden = state.globeSurface;
+    }
   }
 
   // Mosaic style: every region becomes one path of dot subpaths. The dot grid is anchored to the map object (origin at
