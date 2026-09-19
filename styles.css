@@ -369,7 +369,8 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px 
 .route-order button { width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); cursor: pointer; }
 .route-order button:disabled { opacity: .3; cursor: default; }
 .scope-switch { flex: 0 0 auto; margin: 0 0 14px; }
-#globe-reference { width: 100%; margin: 8px 0; font-size: 11px; }
+.control-subheading { margin: 18px 0 8px; color: var(--text-soft); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.control-subheading:first-child { margin-top: 2px; }
 .object-meta:empty { display: none; }
 #city-labels-hint { margin: 6px 0 2px; }
 .projection-help { min-height: 23px; }

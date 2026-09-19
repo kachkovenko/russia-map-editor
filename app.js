@@ -1604,10 +1604,6 @@
     bindRange("light-angle","lightAngle","light-angle-value",v=>`${v}°`,Number);
     bindRange("lens-lon","lensLon","lens-lon-value",v=>`${v}°`,Number,true);
     bindRange("lens-lat","lensLat","lens-lat-value",v=>`${v}°`,Number,true);
-    document.getElementById("globe-reference").addEventListener("click",()=>{
-      Object.assign(state,{globeSurface:true,globeLight:70,lightAngle:225,oceanColor:"#e4e5e4",gradient:false,fillStart:"#c5c8c7",borderColor:"#b4b8b7",borderWidth:.5,markerColor:"#d9ee63",selectedColor:"#d9ee63",labelStyle:"pill",labelBackground:"#ffffff",background:"#f6f6f6",routeColor:"#d9ee63",routeStyle:"dotted",lensStrength:0,cityFontSize:24,markerSize:8});
-      syncControls();render();saveState();
-    });
     [["label-style", "labelStyle"], ["route-mode", "routeMode"], ["route-style", "routeStyle"], ["route-hub", "routeHub"]].forEach(([id, key]) => {
       document.getElementById(id).addEventListener("change", event => { state[key] = event.target.value; updateRouteControls(); updateLabelModeControls(); restyle(); saveState(); });
     });

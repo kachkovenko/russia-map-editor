@@ -202,9 +202,10 @@
         </div>
 
         <section class="control-section" data-section="style">
-          <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-style"><span>Стиль</span><span class="section-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
+          <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-style"><span>Вид карты</span><span class="section-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
           <div class="section-body" id="section-style">
             <div class="section-body__inner">
+              <h3 class="control-subheading">Отображение</h3>
               <div class="projection-grid style-grid" role="group" aria-label="Стиль карты">
                 <button class="is-active" data-map-style="atlas" title="Сплошная заливка регионов"><svg class="style-preview" viewBox="0 0 100 48" aria-hidden="true"><path d="m8 21 13-10 13 4 10-9 17 5 8-6 21 12-6 15-17 1-12 9-16-7-15 4-9-9Z" fill="currentColor"/><path d="m34 15 5 20m5-29 11 36m14-37-2 28M8 21l82-4" fill="none" stroke="white" stroke-width="1.5"/></svg><span>Атлас</span><small>Сплошная карта</small></button>
                 <button data-map-style="mosaic" title="Регионы набраны сеткой точек"><svg class="style-preview" viewBox="0 0 100 48" aria-hidden="true"><defs><pattern id="style-dot-preview" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="1.8" fill="currentColor"/></pattern></defs><path d="m8 21 13-10 13 4 10-9 17 5 8-6 21 12-6 15-17 1-12 9-16-7-15 4-9-9Z" fill="url(#style-dot-preview)"/></svg><span>Мозаика</span><small>Карта из точек</small></button>
@@ -228,6 +229,33 @@
                   </div>
                 </div>
               </div>
+              <h3 class="control-subheading">Проекция</h3>
+              <div class="projection-grid">
+                <button class="is-active" data-projection="conic" title="Равновеликая проекция, оптимальная для России"><i class="projection-icon projection-icon--conic"></i><span>Атласная</span></button>
+                <button data-projection="mercator" title="Привычная проекция веб-карт, увеличивает северные территории"><i class="projection-icon projection-icon--flat"></i><span>Меркатор</span></button>
+                <button data-projection="globe" title="Карта на глобусе, вид сверху из точки обзора"><i class="projection-icon projection-icon--globe"></i><span>Глобус</span></button>
+              </div>
+              <p class="microcopy projection-help" id="projection-help">Равновеликая проекция: площади регионов сравниваются корректнее.</p>
+              <div class="globe-only" hidden>
+                <label class="switch-row"><span>Поверхность глобуса</span><input class="switch" id="globe-surface-enabled" type="checkbox"></label>
+              </div>
+              <h3 class="control-subheading">Положение</h3>
+              <label class="range-row"><span>Поворот <output id="rotation-value">0°</output></span><span class="range-track" style="--ticks: 6"><input id="rotation" type="range" min="-45" max="45" value="0"></span></label>
+              <label class="range-row globe-only" hidden><span>Перспектива <output id="lens-strength-value">55%</output></span><span class="range-track" style="--ticks: 4"><input id="lens-strength" type="range" min="0" max="100" value="55"></span></label>
+              <div class="globe-only" hidden>
+                <label class="range-row"><span>Долгота обзора <output id="lens-lon-value">91°</output></span><input id="lens-lon" type="range" min="-180" max="180" step="1" value="91"></label>
+                <label class="range-row"><span>Широта обзора <output id="lens-lat-value">65°</output></span><input id="lens-lat" type="range" min="-85" max="85" step="1" value="65"></label>
+                <p class="microcopy">Вращайте глобус за значок в его центре (или Alt + перетаскивание). Обычное перетаскивание перемещает карту.</p>
+              </div>
+              <label class="switch-row"><span>Градусная сетка</span><input class="switch" id="graticule-enabled" type="checkbox"></label>
+              <div class="sub-options" id="graticule-options" hidden>
+                <div class="segmented segmented--sub" id="graticule-step">
+                  <button class="is-active" data-graticule-step="10">Шаг 10°</button>
+                  <button data-graticule-step="5">Шаг 5°</button>
+                </div>
+                <label class="color-row"><span>Цвет линий</span><span class="swatch"><input id="graticule-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="graticule-color" value="#171717" maxlength="7" aria-label="HEX-код линий градусной сетки" spellcheck="false"></span></label>
+              </div>
+              <label class="switch-row"><span>Стрелка севера</span><input class="switch" id="compass-enabled" type="checkbox"></label>
             </div>
           </div>
         </section>
@@ -261,6 +289,17 @@
               </div>
               <label class="field-row"><span>Прозрачность</span><span class="number-control"><input id="fill-opacity" type="number" min="10" max="100" step="5" value="100"><span>%</span></span></label>
               <label class="color-row"><span>Выделение</span><span class="swatch"><input id="selected-color" type="color" value="#ff5f46"><input class="hex-input" data-color-text-for="selected-color" value="#FF5F46" maxlength="7" aria-label="HEX-код цвета выделения" spellcheck="false"></span></label>
+              <label class="color-row globe-only globe-surface-only" hidden><span>Цвет океана</span><span class="swatch"><input id="ocean-color" type="color" value="#e5e7eb"><input class="hex-input" data-color-text-for="ocean-color" value="#E5E7EB" maxlength="7" aria-label="HEX-код океана" spellcheck="false"></span></label>
+            </div>
+          </div>
+        </section>
+
+        <section class="control-section globe-only" data-section="lighting" hidden>
+          <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-lighting"><span>Освещение</span><span class="section-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
+          <div class="section-body" id="section-lighting">
+            <div class="section-body__inner">
+              <label class="range-row"><span>Освещение и блик <output id="globe-light-value">65%</output></span><input id="globe-light-strength" type="range" min="0" max="100" value="65"></label>
+              <label class="range-row"><span>Направление света <output id="light-angle-value">225°</output></span><input id="light-angle" type="range" min="0" max="360" value="225"></label>
             </div>
           </div>
         </section>
@@ -355,41 +394,6 @@
               <ol class="route-order" id="route-order" aria-label="Порядок городов в цепочке" hidden></ol>
             </div>
           </div></div>
-        </section>
-
-        <section class="control-section" data-section="projection">
-          <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-projection"><span>Проекция</span><span class="section-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
-          <div class="section-body" id="section-projection">
-            <div class="section-body__inner">
-              <div class="projection-grid">
-                <button class="is-active" data-projection="conic" title="Равновеликая проекция, оптимальная для России"><i class="projection-icon projection-icon--conic"></i><span>Атласная</span></button>
-                <button data-projection="mercator" title="Привычная проекция веб-карт, увеличивает северные территории"><i class="projection-icon projection-icon--flat"></i><span>Меркатор</span></button>
-                <button data-projection="globe" title="Карта на глобусе, вид сверху из точки обзора"><i class="projection-icon projection-icon--globe"></i><span>Глобус</span></button>
-              </div>
-              <p class="microcopy projection-help" id="projection-help">Равновеликая проекция: площади регионов сравниваются корректнее.</p>
-              <div class="globe-only" hidden>
-                <button type="button" class="button button--secondary" id="globe-reference">Светлый глобус · как в референсе</button>
-                <label class="switch-row"><span>Поверхность глобуса</span><input class="switch" id="globe-surface-enabled" type="checkbox"></label>
-                <label class="color-row"><span>Цвет океана</span><span class="swatch"><input id="ocean-color" type="color" value="#e5e7eb"><input class="hex-input" data-color-text-for="ocean-color" value="#E5E7EB" maxlength="7" aria-label="HEX-код океана" spellcheck="false"></span></label>
-                <label class="range-row"><span>Освещение и блик <output id="globe-light-value">65%</output></span><input id="globe-light-strength" type="range" min="0" max="100" value="65"></label>
-                <label class="range-row"><span>Направление света <output id="light-angle-value">225°</output></span><input id="light-angle" type="range" min="0" max="360" value="225"></label>
-                <label class="range-row"><span>Долгота обзора <output id="lens-lon-value">91°</output></span><input id="lens-lon" type="range" min="-180" max="180" step="1" value="91"></label>
-                <label class="range-row"><span>Широта обзора <output id="lens-lat-value">65°</output></span><input id="lens-lat" type="range" min="-85" max="85" step="1" value="65"></label>
-                <p class="microcopy">Вращайте глобус за значок в его центре (или Alt + перетаскивание). Обычное перетаскивание перемещает карту.</p>
-              </div>
-              <label class="range-row"><span>Поворот <output id="rotation-value">0°</output></span><span class="range-track" style="--ticks: 6"><input id="rotation" type="range" min="-45" max="45" value="0"></span></label>
-              <label class="range-row globe-only" hidden><span>Перспектива <output id="lens-strength-value">55%</output></span><span class="range-track" style="--ticks: 4"><input id="lens-strength" type="range" min="0" max="100" value="55"></span></label>
-              <label class="switch-row"><span>Градусная сетка</span><input class="switch" id="graticule-enabled" type="checkbox"></label>
-              <div class="sub-options" id="graticule-options" hidden>
-                <div class="segmented segmented--sub" id="graticule-step">
-                  <button class="is-active" data-graticule-step="10">Шаг 10°</button>
-                  <button data-graticule-step="5">Шаг 5°</button>
-                </div>
-                <label class="color-row"><span>Цвет линий</span><span class="swatch"><input id="graticule-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="graticule-color" value="#171717" maxlength="7" aria-label="HEX-код линий градусной сетки" spellcheck="false"></span></label>
-              </div>
-              <label class="switch-row"><span>Стрелка севера</span><input class="switch" id="compass-enabled" type="checkbox"></label>
-            </div>
-          </div>
         </section>
 
         <section class="control-section" data-section="slide">
