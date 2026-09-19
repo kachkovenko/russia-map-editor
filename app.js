@@ -42,7 +42,7 @@
   });
 
   const defaults = {
-    mapScope: "russia", globeSurface: false, oceanColor: "#e5e7eb", globeLight: 65, lightAngle: 225,
+    mapScope: "russia", globeSurface: false, oceanColor: "#e5e7eb", globeLight: 65, globeGloss: 65, lightAngle: 225,
     labelStyle: "plain", labelBackground: "#ffffff", routeMode: "off", routeStyle: "solid", routeColor: "#4263eb", routeWidth: 2, routeBend: 25, routeHub: "", routeSeed: 1,
     tab: "regions", mapStyle: "atlas", dotPitch: 12, dotSize: 60, dotShape: "circle", dotLayout: "grid", mosaicBorders: false,
     gradient: true, gradientType: "linear", fillStart: "#3b5f8a", fillEnd: "#b9cad8",
@@ -54,7 +54,7 @@
     background: "#ffffff", transparent: false, zoom: 1, mapX: 0, mapY: 0, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, lensLon: 91.06, lensLat: 65.36, projectCompanion: true, fontCompanion: true
   };
   const PROJECT_SETTING_KEYS = Object.freeze([
-    "mapScope", "globeSurface", "oceanColor", "globeLight", "lightAngle",
+    "mapScope", "globeSurface", "oceanColor", "globeLight", "globeGloss", "lightAngle",
     "labelStyle", "labelBackground", "routeMode", "routeStyle", "routeColor", "routeWidth", "routeBend", "routeHub", "routeSeed",
     "mapStyle", "dotPitch", "dotSize", "dotShape", "dotLayout", "mosaicBorders",
     "gradient", "gradientType", "fillStart", "fillEnd", "angle", "gradientStart", "gradientEnd", "opacity", "selectedColor", "borders",
@@ -66,10 +66,10 @@
     "projectCompanion", "fontCompanion"
   ]);
   const VIEW_KEYS = Object.freeze(["viewZoom", "panX", "panY"]);
-  const BOOLEAN_SETTINGS = new Set(["mosaicBorders", "gradient", "borders", "regionLabels", "regionLabelsCaps", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "graticule", "compass", "frame", "transparent", "projectCompanion", "fontCompanion"]);
-  const COLOR_SETTINGS = new Set(["fillStart", "fillEnd", "selectedColor", "borderColor", "leaderColor", "labelHaloColor", "markerColor", "markerOutlineColor", "graticuleColor", "background"]);
+  const BOOLEAN_SETTINGS = new Set(["globeSurface", "mosaicBorders", "gradient", "borders", "regionLabels", "regionLabelsCaps", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "graticule", "compass", "frame", "transparent", "projectCompanion", "fontCompanion"]);
+  const COLOR_SETTINGS = new Set(["oceanColor", "fillStart", "fillEnd", "selectedColor", "borderColor", "leaderColor", "labelHaloColor", "markerColor", "markerOutlineColor", "graticuleColor", "background"]);
   const NUMBER_RANGES = Object.freeze({
-    globeLight: [0, 100], lightAngle: [0, 360],
+    globeLight: [0, 100], globeGloss: [0, 100], lightAngle: [0, 360],
     routeWidth: [.5, 8], routeBend: [0, 70], routeSeed: [1, 1000000],
     dotPitch: [6, 32], dotSize: [30, 100],
     angle: [0, 360], gradientStart: [0, 100], gradientEnd: [0, 100], opacity: [.1, 1], borderWidth: [.2, 4], markerSize: [3, 12],
@@ -142,8 +142,6 @@
   function mapFont() { return LABEL_FONTS[state.labelFont].stack; }
   COLOR_SETTINGS.add("labelBackground");
   COLOR_SETTINGS.add("routeColor");
-  COLOR_SETTINGS.add("oceanColor");
-  BOOLEAN_SETTINGS.add("globeSurface");
   const measureContext = document.createElement("canvas").getContext("2d");
   const measureCache = new Map();
   let shownRegionLabels = new Set();
@@ -474,12 +472,15 @@
     d3.select("#globe-dots-clip").attr("clip-path",state.projection==="globe"?"url(#globe-clip)":null);
     const shown=state.projection==="globe" && state.globeSurface;
     const surface=d3.select("#globe-surface"), light=d3.select("#globe-light");
-    surface.attr("display",shown?null:"none"); light.attr("display",shown&&state.globeLight?null:"none");
+    const peak = Math.max(state.globeLight, state.globeGloss);
+    surface.attr("display",shown?null:"none"); light.attr("display",shown&&peak?null:"none");
     if(!shown) return;
     const sphere=path({type:"Sphere"});
     surface.attr("d",sphere).attr("fill",state.oceanColor);
     light.selectAll("path").attr("d",sphere);
-    light.attr("opacity",state.globeLight/100);
+    light.attr("opacity",peak/100);
+    light.select(".globe-light__shade").attr("opacity",peak?state.globeLight/peak:0);
+    light.select(".globe-light__gloss").attr("opacity",peak?state.globeGloss/peak:0);
     const a=state.lightAngle*Math.PI/180;
     const cx=50+Math.cos(a)*25,cy=50+Math.sin(a)*25;
     d3.select("#globe-shade").attr("cx",`${cx}%`).attr("cy",`${cy}%`);
@@ -1613,6 +1614,7 @@
     bindCheck("globe-surface-enabled","globeSurface",render);
     bindColor("ocean-color","oceanColor");
     bindRange("globe-light-strength","globeLight","globe-light-value",v=>`${v}%`,Number);
+    bindRange("globe-gloss-strength","globeGloss","globe-gloss-value",v=>`${v}%`,Number);
     bindRange("light-angle","lightAngle","light-angle-value",v=>`${v}°`,Number);
     bindRange("lens-lon","lensLon","lens-lon-value",v=>`${v}°`,Number,true);
     bindRange("lens-lat","lensLat","lens-lat-value",v=>`${v}°`,Number,true);
@@ -2331,7 +2333,7 @@
 
   function syncControls() {
     const pairs = {
-      "globe-surface-enabled":state.globeSurface,"ocean-color":state.oceanColor,"globe-light-strength":state.globeLight,"light-angle":state.lightAngle,"lens-lon":state.lensLon,"lens-lat":state.lensLat,
+      "globe-surface-enabled":state.globeSurface,"ocean-color":state.oceanColor,"globe-light-strength":state.globeLight,"globe-gloss-strength":state.globeGloss,"light-angle":state.lightAngle,"lens-lon":state.lensLon,"lens-lat":state.lensLat,
       "label-style": state.labelStyle, "label-background": state.labelBackground, "route-mode": state.routeMode, "route-style": state.routeStyle,
       "route-color": state.routeColor, "route-width": state.routeWidth, "route-bend": state.routeBend,
       "dot-pitch": state.dotPitch, "dot-size": state.dotSize,
@@ -2353,7 +2355,7 @@
       if (el.type === "checkbox") el.checked = value; else el.value = value;
     });
     document.querySelectorAll("[data-map-scope]").forEach(b=>b.classList.toggle("is-active",b.dataset.mapScope===state.mapScope));
-    for (const [id,value,suffix] of [["globe-light-value",state.globeLight,"%"],["light-angle-value",state.lightAngle,"°"],["lens-lon-value",state.lensLon,"°"],["lens-lat-value",state.lensLat,"°"]]) document.getElementById(id).textContent=`${Math.round(value)}${suffix}`;
+    for (const [id,value,suffix] of [["globe-light-value",state.globeLight,"%"],["globe-gloss-value",state.globeGloss,"%"],["light-angle-value",state.lightAngle,"°"],["lens-lon-value",state.lensLon,"°"],["lens-lat-value",state.lensLat,"°"]]) document.getElementById(id).textContent=`${Math.round(value)}${suffix}`;
     document.querySelectorAll("[data-color-text-for]").forEach(textInput => {
       const colorInput = document.getElementById(textInput.dataset.colorTextFor);
       textInput.value = colorInput.value.toUpperCase();
@@ -2566,6 +2568,10 @@
       }
       clean[key] = value;
     });
+    if (!Object.prototype.hasOwnProperty.call(input, "globeGloss")) {
+      const migrated = MapProject.migratedGlobeGloss(input, defaults.globeGloss);
+      if (typeof migrated === "number" && Number.isFinite(migrated)) clean.globeGloss = clamp(migrated, 0, 100);
+    }
     if (clean.gradientStart > clean.gradientEnd) {
       if (strict) throw new Error("начальная точка градиента не может быть правее конечной");
       clean.gradientStart = defaults.gradientStart;

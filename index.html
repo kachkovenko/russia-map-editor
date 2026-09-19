@@ -145,7 +145,7 @@
                 <g id="regions-layer"></g>
                 <path id="country-outline" class="country-outline"></path>
                 <path id="graticule" class="graticule" display="none"></path>
-                <g id="globe-light" pointer-events="none" display="none"><path fill="url(#globe-shade)"></path><path fill="url(#globe-gloss)"></path></g>
+                <g id="globe-light" pointer-events="none" display="none"><path class="globe-light__shade" fill="url(#globe-shade)"></path><path class="globe-light__gloss" fill="url(#globe-gloss)"></path></g>
                 <g id="routes-layer" pointer-events="none"></g>
                 <g id="region-label-backgrounds" pointer-events="none"></g>
                 <g id="region-labels"></g>
@@ -299,8 +299,9 @@
           <div class="section-body" id="section-lighting">
             <div class="section-body__inner">
               <p class="microcopy lighting-disabled-hint" id="lighting-disabled-hint" hidden>Включите поверхность глобуса, чтобы настроить свет.</p>
-              <label class="range-row"><span>Освещение и блик <output id="globe-light-value">65%</output></span><input id="globe-light-strength" type="range" min="0" max="100" value="65"></label>
+              <label class="range-row"><span>Интенсивность освещения <output id="globe-light-value">65%</output></span><input id="globe-light-strength" type="range" min="0" max="100" value="65"></label>
               <label class="range-row"><span>Направление света <output id="light-angle-value">225°</output></span><input id="light-angle" type="range" min="0" max="360" value="225"></label>
+              <label class="range-row"><span>Интенсивность блика <output id="globe-gloss-value">65%</output></span><input id="globe-gloss-strength" type="range" min="0" max="100" value="65"></label>
             </div>
           </div>
         </section>
@@ -426,6 +427,7 @@
   <script src="data/world.topojson.js"></script>
   <script src="data/world-cities.js"></script>
   <script src="lib/map-routes.js"></script>
+  <script src="lib/map-project.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

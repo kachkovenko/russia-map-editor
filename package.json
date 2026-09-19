@@ -7,6 +7,7 @@
     "build:world": "node scripts/build-world.mjs",
     "build:world-cities": "node scripts/build-world-cities.mjs",
     "check:routes": "node scripts/check-routes.cjs",
+    "check:project": "node scripts/check-project.cjs",
     "check:world": "node scripts/check-world.cjs"
   },
   "devDependencies": {
