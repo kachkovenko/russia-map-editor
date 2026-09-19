@@ -6,6 +6,10 @@
   const RATIO_HEIGHTS = { "16:9": 900, "4:3": 1200 };
   const GRID_SPACING = 24;
   const PROJECT_FORMAT = "map.kachkovenko.kontur";
+  // Provenance written into every export (SVG metadata, PNG text chunks, PPTX properties): invisible in the picture,
+  // readable in file inspectors. The map belongs to its author; this only records where it was made.
+  const SITE_URL = "https://map.kachkovenko.com";
+  const PROVENANCE = `Создано в редакторе карты России · ${SITE_URL}`;
   const PROJECT_VERSION = 2;
   const MAX_PROJECT_BYTES = 256 * 1024;
   const STORAGE_KEY = "kontur-map-state";
@@ -2697,7 +2701,24 @@
     const style = document.createElementNS(SVG_NS, "style");
     style.textContent = `text{font-family:${mapFont()};font-weight:bold}.region{vector-effect:non-scaling-stroke}.country-outline{fill:none;vector-effect:non-scaling-stroke}.graticule{fill:none;vector-effect:non-scaling-stroke}.compass text{text-anchor:middle;paint-order:stroke;stroke-linejoin:round}.region-label{text-anchor:middle}.region-label,.city-label{paint-order:stroke;stroke-linejoin:round}.city-marker__ring{fill:none;stroke-width:1;opacity:.3}${state.mapStyle === "mosaic" ? "" : ".city-marker{filter:url(#marker-shadow)}"}.city-leader{stroke-linecap:round}`;
     clone.insertBefore(style, clone.firstChild);
+    clone.insertBefore(exportMetadata(), clone.firstChild);
+    const desc = document.createElementNS(SVG_NS, "desc");
+    desc.textContent = PROVENANCE;
+    clone.insertBefore(desc, clone.firstChild);
     return { xml: new XMLSerializer().serializeToString(clone), width: bounds.width, height: bounds.height, bounds };
+  }
+
+  // Dublin Core in the shape Inkscape and Illustrator read (cc:Work); parsed as XML so the prefixes serialise with their
+  // namespaces instead of as literal element names.
+  function exportMetadata() {
+    const escape = text => text.replace(/[<>&]/g, ch => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[ch]));
+    const title = state.mapScope === "world" ? "Карта мира" : "Карта России";
+    const xml = `<metadata xmlns="${SVG_NS}"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#"><cc:Work rdf:about="">` +
+      `<dc:format>image/svg+xml</dc:format><dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>` +
+      `<dc:title>${escape(title)}</dc:title><dc:description>${escape(PROVENANCE)}</dc:description>` +
+      `<dc:source>${SITE_URL}</dc:source><dc:date>${new Date().toISOString().slice(0, 10)}</dc:date>` +
+      `</cc:Work></rdf:RDF></metadata>`;
+    return document.importNode(new DOMParser().parseFromString(xml, "image/svg+xml").documentElement, true);
   }
 
   async function exportFile(format) {
@@ -2803,11 +2824,49 @@
         context.scale(scale, scale);
         context.drawImage(image, 0, 0, data.width, data.height);
         URL.revokeObjectURL(url);
-        canvas.toBlob(output => output ? resolve({ blob: output, width: data.width, height: data.height }) : reject(new Error("PNG не создан")), "image/png");
+        canvas.toBlob(output => {
+          if (!output) { reject(new Error("PNG не создан")); return; }
+          stampPng(output).then(blob => resolve({ blob, width: data.width, height: data.height }), reject);
+        }, "image/png");
       };
       image.onerror = () => { URL.revokeObjectURL(url); reject(new Error("SVG не отрисован")); };
       image.src = url;
     });
+  }
+
+  // The canvas gives a bare PNG; the same provenance as in SVG goes in as iTXt chunks (UTF-8) right after IHDR.
+  // Anything that does not look like a PNG is returned untouched.
+  async function stampPng(blob) {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+    const ihdrEnd = 8 + 4 + 4 + 13 + 4;
+    if (bytes.length < ihdrEnd || signature.some((byte, i) => bytes[i] !== byte) || String.fromCharCode(...bytes.subarray(12, 16)) !== "IHDR") return blob;
+    const chunks = [["Software", PROVENANCE], ["Source", SITE_URL]].map(([keyword, text]) => pngTextChunk(keyword, text));
+    return new Blob([bytes.subarray(0, ihdrEnd), ...chunks, bytes.subarray(ihdrEnd)], { type: "image/png" });
+  }
+
+  function pngTextChunk(keyword, text) {
+    const encoder = new TextEncoder();
+    // iTXt: keyword\0, compression flag, compression method, language tag\0, translated keyword\0, UTF-8 text.
+    const data = new Uint8Array([...encoder.encode(keyword), 0, 0, 0, 0, 0, ...encoder.encode(text)]);
+    const chunk = new Uint8Array(12 + data.length);
+    const view = new DataView(chunk.buffer);
+    view.setUint32(0, data.length);
+    chunk.set(encoder.encode("iTXt"), 4);
+    chunk.set(data, 8);
+    view.setUint32(8 + data.length, crc32(chunk.subarray(4, 8 + data.length)));
+    return chunk;
+  }
+
+  const CRC_TABLE = Uint32Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  function crc32(bytes) {
+    let c = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
   }
 
   async function exportPptx() {
@@ -2815,7 +2874,7 @@
     const vector = getExportSvg({ omitLabels: true });
     const dataUri = svgToDataUri(vector.xml);
     const pptx = new PptxGenJS();
-    pptx.author = "Редактор карты России · map.kachkovenko.com";
+    pptx.author = `Редактор карты России · ${SITE_URL}`;
     pptx.subject = state.mapScope === "world" ? "Карта мира" : "Карта России";
     pptx.title = pptx.subject;
     pptx.company = "map.kachkovenko.com";

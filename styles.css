@@ -227,6 +227,9 @@ kbd { padding: 2px 6px; color: var(--faint); border: 1px solid var(--line); bord
 .status-bar { position: absolute; z-index: 5; left: 20px; bottom: 28px; display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 8px; border-radius: var(--radius-sm); background: var(--canvas); color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
 .status-bar output { color: var(--text-soft); font-weight: 500; }
 .status-bar__sep { width: 1px; height: 12px; background: #cbd2df; }
+/* Terms link in the opposite corner, set like the status strip: the service and its maps are free, the code is not. */
+.stage-license { position: absolute; z-index: 5; right: 20px; bottom: 28px; display: inline-flex; align-items: center; height: 30px; padding: 0 8px; border-radius: var(--radius-sm); color: var(--muted); background: var(--canvas); font-size: 11px; text-decoration: none; }
+.stage-license:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
 /* Regions picked on the map: screen-only outline above the map, plus a floating bar to recolour or unmark them. */
 .active-outline { pointer-events: none; }
 .active-outline path { fill: none; vector-effect: non-scaling-stroke; stroke-linejoin: round; }

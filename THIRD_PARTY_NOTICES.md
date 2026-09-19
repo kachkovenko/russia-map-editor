@@ -20,4 +20,4 @@
 
 Only geometry is imported into the generated region files. Source attributes are discarded and replaced with the project's own region identifiers and Russian-language metadata. Exact source files, hashes and transformations are documented in `data/REGIONS_DATA.md`.
 
-The application interface and original application code in this repository are provided as project code.
+The application interface, original application code and prepared data files in this repository are covered by `LICENSE.md` (source-available, all rights reserved; the service and the maps made with it are free to use).
