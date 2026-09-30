@@ -55,7 +55,8 @@
     labelFont: "inter", leaderLines: true, leaderColor: "#171717", labelHalo: true, labelHaloWidth: 1.5, labelHaloColor: "#ffffff",
     markerColor: "#171717", markerShape: "circle", markerSize: 6, markerOutline: true, markerOutlineColor: "#ffffff",
     projection: "conic", rotation: 0, graticule: false, graticuleStep: 10, graticuleColor: "#171717", compass: false, frame: true, ratio: "16:9",
-    background: "#ffffff", transparent: false, zoom: 1, mapX: 0, mapY: 0, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, lensLon: 91.06, lensLat: 65.36, projectCompanion: true, fontCompanion: true
+    background: "#ffffff", transparent: false, zoom: 1, mapX: 0, mapY: 0, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, lensLon: 91.06, lensLat: 65.36, projectCompanion: false, fontCompanion: false,
+    pngScale: 2, documentName: ""
   };
   const PROJECT_SETTING_KEYS = Object.freeze([
     "mapScope", "globeSurface", "oceanColor", "globeLight", "globeGloss", "lightAngle",
@@ -67,7 +68,7 @@
     "markerOutline", "markerOutlineColor",
     "projection", "rotation", "graticule", "graticuleStep", "graticuleColor", "compass", "frame", "ratio", "background", "transparent",
     "zoom", "mapX", "mapY", "viewZoom", "panX", "panY", "lensStrength", "lensLon", "lensLat",
-    "projectCompanion", "fontCompanion"
+    "projectCompanion", "fontCompanion", "pngScale", "documentName"
   ]);
   const VIEW_KEYS = Object.freeze(["viewZoom", "panX", "panY"]);
   const BOOLEAN_SETTINGS = new Set(["globeSurface", "mosaicBorders", "gradient", "borders", "regionLabels", "regionLabelsCaps", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "graticule", "compass", "frame", "transparent", "projectCompanion", "fontCompanion"]);
@@ -86,12 +87,25 @@
     labelStyle: ["plain", "pill"], routeMode: ["off", "hub", "network", "chain"], routeStyle: ["solid", "dashed", "dotted"],
     gradientType: ["linear", "radial"], mapStyle: ["atlas", "mosaic"], dotShape: ["circle", "square", "rounded"], dotLayout: ["grid", "stagger"],
     projection: ["conic", "mercator", "globe"], ratio: ["16:9", "4:3"], tab: ["regions", "cities", "selected"], regionLabelsMode: ["all", "selected"],
-    markerShape: ["circle", "square", "diamond", "pin"], labelFont: Object.keys(LABEL_FONTS), graticuleStep: [10, 5]
+    markerShape: ["circle", "square", "diamond", "pin"], labelFont: Object.keys(LABEL_FONTS), graticuleStep: [10, 5], pngScale: [1, 2, 4]
   });
   // Graticule window: Russia's extent with a margin, so the net reads as a sector of the globe around the country.
   const GRATICULE_EXTENT = [[15, 40], [195, 82]];
   // Spaced capitals for region names: tracking as a share of the font size (PPTX gets the same value in points).
   const CAPS_TRACKING = .14;
+  // Ready-made colour themes: one click sets every shared colour; per-region colours stay as they are.
+  const THEMES = Object.freeze([
+    { id: "calm", name: "Сдержанная", colors: { gradient: true, fillStart: "#3b5f8a", fillEnd: "#b9cad8", selectedColor: "#ff5f46", borderColor: "#ffffff", background: "#ffffff", markerColor: "#171717", markerOutlineColor: "#ffffff", labelHaloColor: "#ffffff", leaderColor: "#171717", labelBackground: "#ffffff", graticuleColor: "#171717", routeColor: "#4263eb", oceanColor: "#e5e7eb" } },
+    { id: "contrast", name: "Контрастная", colors: { gradient: false, fillStart: "#d5dbe6", fillEnd: "#d5dbe6", selectedColor: "#e63946", borderColor: "#ffffff", background: "#ffffff", markerColor: "#111827", markerOutlineColor: "#ffffff", labelHaloColor: "#ffffff", leaderColor: "#111827", labelBackground: "#ffffff", graticuleColor: "#94a3b8", routeColor: "#e63946", oceanColor: "#eef2f7" } },
+    { id: "mono", name: "Монохром", colors: { gradient: false, fillStart: "#d4d4d4", fillEnd: "#d4d4d4", selectedColor: "#262626", borderColor: "#ffffff", background: "#ffffff", markerColor: "#171717", markerOutlineColor: "#ffffff", labelHaloColor: "#ffffff", leaderColor: "#404040", labelBackground: "#ffffff", graticuleColor: "#a3a3a3", routeColor: "#262626", oceanColor: "#f2f2f2" } },
+    { id: "dark", name: "Тёмная", colors: { gradient: true, fillStart: "#3d4f6b", fillEnd: "#6b7f9e", selectedColor: "#f5a524", borderColor: "#131a2a", background: "#131a2a", markerColor: "#f8fafc", markerOutlineColor: "#131a2a", labelHaloColor: "#131a2a", leaderColor: "#cbd5e1", labelBackground: "#1f2a40", graticuleColor: "#56657f", routeColor: "#38bdf8", oceanColor: "#1c2638" } },
+    { id: "warm", name: "Тёплая", colors: { gradient: true, fillStart: "#8a5a3b", fillEnd: "#e8d3b4", selectedColor: "#2a6f97", borderColor: "#fffaf3", background: "#fffaf3", markerColor: "#3d2b1f", markerOutlineColor: "#fffaf3", labelHaloColor: "#fffaf3", leaderColor: "#3d2b1f", labelBackground: "#fffaf3", graticuleColor: "#b08968", routeColor: "#2a6f97", oceanColor: "#f3e9dc" } }
+  ]);
+  // Shortcut labels are written the Mac way in the markup and translated for Windows and Linux.
+  const IS_MAC = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
+  function keyLabel(text) {
+    return IS_MAC ? text.replace(/\bAlt\b/g, "⌥ Option") : text.replace(/⇧⌘/g, "Ctrl+Shift+").replace(/⌘/g, "Ctrl+").replace(/⇧/g, "Shift+");
+  }
   // `selectedRegions` are the marked (highlighted, listed) regions; `activeRegions` is the transient pick on the map
   // whose fill is being edited; `regionColors` holds per-region fills that override the shared highlight colour.
   const state = {
@@ -128,6 +142,15 @@
   let cityGroups = null;
   let labelGroups = null;
   let toastTimer = null;
+  let toastAction = null;
+  // Inspector folds (UI preference): a first visit opens only the slide, the map view and the fill.
+  const DEFAULT_COLLAPSED = ["lighting", "borders", "labels", "routes"];
+  let collapsedSections = null;
+  let applySectionFolds = () => {};
+  // Colours picked recently, offered again in the project palette.
+  const recentColors = [];
+  // The one region that is the map's tab stop.
+  let focusRegionId = null;
   let panGesture = null;
   let pinchGesture = null;
   let labelDrag = null;
@@ -222,11 +245,11 @@
     topCities = cities.slice().sort((a,b)=>b.population-a.population).slice(0,TOP_CITIES_COUNT);
     bindMapData();
     boundScope = state.mapScope;
-    document.querySelector(".document-title__name").textContent = state.mapScope === "world" ? "Карта мира" : "Карта России";
+    syncDocumentName();
     document.querySelector(".library h1").textContent = state.mapScope === "world" ? "Страны и города" : "Регионы и города";
     document.getElementById("regions-tab-label").textContent = state.mapScope === "world" ? "Страны" : "Регионы";
     document.getElementById("search").placeholder = state.mapScope === "world" ? "Страна или город" : "Регион или город";
-    document.querySelector('[data-projection="conic"] span').textContent = state.mapScope === "world" ? "Мир" : "Атласная";
+    document.querySelectorAll('[data-projection="conic"] span, [data-quick-projection="conic"] span').forEach(el => { el.textContent = state.mapScope === "world" ? "Мир" : "Атласная"; });
     document.querySelector('#borders-enabled').previousElementSibling.textContent = state.mapScope === "world" ? "Границы стран" : "Границы регионов";
     document.querySelector('#region-labels-enabled').previousElementSibling.textContent = state.mapScope === "world" ? "Названия стран" : "Названия регионов";
     state.activeRegions.clear(); state.mapSelected = false;
@@ -241,7 +264,7 @@
       .attr("class", "region")
       .attr("data-id", d => d.properties.id)
       .attr("role", "button")
-      .attr("tabindex", "0")
+      .attr("tabindex", (d, i) => i === 0 ? 0 : -1)
       .attr("aria-label", d => d.properties.name)
       .on("mousemove", regionHover)
       .on("mouseleave", hideTooltip)
@@ -249,7 +272,12 @@
         event.stopPropagation();
         if (Date.now() >= suppressSelectionUntil) pickRegion(d.properties.id, event.shiftKey || event.metaKey || event.ctrlKey);
       })
-      .on("keydown", (event, d) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); pickRegion(d.properties.id, event.shiftKey); } });
+      .on("focus", (event, d) => { if (focusRegionId !== d.properties.id) setRegionTabStop(d.properties.id); })
+      .on("keydown", (event, d) => {
+        if (event.key === "Enter" || event.key === " ") { event.preventDefault(); pickRegion(d.properties.id, event.shiftKey); return; }
+        if (event.key.startsWith("Arrow")) { event.preventDefault(); event.stopPropagation(); moveRegionFocus(d.properties.id, event.key); }
+      });
+    focusRegionId = features[0]?.properties.id ?? null;
 
     labelGroups = labelsLayer.selectAll("text").data(features, d => d.properties.id).join("text")
       .attr("class", "region-label");
@@ -446,7 +474,13 @@
     const order = document.getElementById("route-order");
     order.hidden = state.routeMode !== "chain";
     order.innerHTML = selected.slice(0, 150).map((c, i) => `<li><span>${i + 1}. ${escapeHtml(c.name)}</span><button type="button" data-id="${escapeHtml(c.id)}" data-route-move="-1" aria-label="${escapeHtml(c.name)}: выше" ${i === 0 ? "disabled" : ""}>↑</button><button type="button" data-id="${escapeHtml(c.id)}" data-route-move="1" aria-label="${escapeHtml(c.name)}: ниже" ${i === Math.min(selected.length, 150) - 1 ? "disabled" : ""}>↓</button></li>`).join("");
-    document.getElementById("route-hint").textContent = selected.length < 2 ? "Выберите минимум два города в библиотеке." : selected.length > 150 ? "Связи показаны для первых 150 выбранных городов." : state.routeMode === "chain" ? "Порядок выбора городов. Стрелками можно изменить маршрут." : "Связи между выбранными городами. Схема сохраняется в JSON.";
+    document.getElementById("route-hint").textContent = selected.length < 2 ? "Отметьте минимум два города в библиотеке." : selected.length > 150 ? "Связи показаны для первых 150 отмеченных городов." : state.routeMode === "chain" ? "Порядок, в котором отмечены города. Стрелками можно изменить маршрут." : "Связи между отмеченными городами. Схема сохраняется в JSON.";
+    // Without two marked cities there is nothing to connect: the section says so and its controls rest.
+    const tooFew = selected.length < 2;
+    const section = document.querySelector('.control-section[data-section="routes"]');
+    section.classList.toggle("is-disabled", tooFew);
+    document.getElementById("routes-empty-hint").hidden = !tooFew;
+    section.querySelectorAll(".section-body select, #route-shuffle").forEach(el => { el.disabled = tooFew; });
   }
 
   function renderRoutes() {
@@ -629,7 +663,7 @@
     updateMapSelection();
     updateLensFocus();
     document.querySelectorAll("[data-projection]").forEach(el => el.classList.toggle("is-active", el.dataset.projection === state.projection));
-    document.querySelectorAll("[data-quick-projection]").forEach(el => el.classList.toggle("is-active", (state.projection === "globe" ? "globe" : "conic") === el.dataset.quickProjection));
+    document.querySelectorAll("[data-quick-projection]").forEach(el => el.classList.toggle("is-active", el.dataset.quickProjection === state.projection));
     updateConditionalVisibility();
     document.getElementById("projection-help").textContent = state.projection === "globe" && (state.mapScope === "world" || state.globeSurface)
       ? "Вид на сферу. Меняйте точку обзора ползунками или Alt-перетаскиванием. Перспектива задаёт высоту наблюдателя; города за горизонтом скрыты."
@@ -908,8 +942,7 @@
         if (back && Math.hypot(back[0] - point[0], back[1] - point[1]) < 1) text = formatGeo(geo);
       }
       el.textContent = text;
-      el.hidden = !text;
-      document.getElementById("cursor-geo-sep").hidden = !text;
+      document.getElementById("status-bar").hidden = !text;
     });
   }
 
@@ -1182,7 +1215,10 @@
     height = RATIO_HEIGHTS[state.ratio];
     artboard.classList.toggle("ratio-4-3", state.ratio === "4:3");
     artboard.classList.toggle("no-frame", !state.frame);
-    document.getElementById("frame-label").textContent = `${state.ratio} · PNG ${width * 2} × ${height * 2}`;
+    const scale = state.pngScale;
+    document.getElementById("frame-label").textContent = `${state.ratio} · PNG ${width * scale} × ${height * scale}`;
+    document.getElementById("png-export-note").textContent = state.frame ? `Картинка ${width * scale} × ${height * scale} для слайда` : `Картинка ×${scale}, обрезана по карте`;
+    document.querySelectorAll("[data-png-scale]").forEach(el => el.classList.toggle("is-active", Number(el.dataset.pngScale) === scale));
     document.getElementById("ratio-control").style.opacity = state.frame ? 1 : .45;
     document.getElementById("crop-note").textContent = state.frame
       ? "Экспортируется весь слайд выбранного формата."
@@ -1221,6 +1257,13 @@
       if (state.tab === "cities") groups.reverse();
       sections.push(...groups.filter(group => group.items.length));
       if (sections.length) foundForSelect = { regions: regions.map(f => f.properties.id), cities: found.map(c => c.id) };
+    } else if (state.tab === "regions" && state.mapScope === "russia") {
+      const districtNames = {};
+      features.forEach(f => { districtNames[f.properties.fd] = f.properties.fd_full; });
+      FEDERAL_DISTRICTS.forEach(fd => {
+        const items = features.filter(f => f.properties.fd === fd);
+        if (items.length) sections.push({ kind: "region", title: `${districtNames[fd] || fd} · ${fd}`, items });
+      });
     } else if (state.tab === "regions") {
       sections.push({ kind: "region", items: features });
     } else {
@@ -1231,15 +1274,16 @@
     const total = sections.reduce((sum, section) => sum + section.items.length, 0);
     if (!total) {
       objectList.innerHTML = !query
-        ? `<div class="empty-state">Пока ничего не выбрано.<br>Кликните ${state.mapScope === "world" ? "страну" : "регион"} на карте или отметьте в списке.</div>`
+        ? `<div class="empty-state">Пока ничего не отмечено.<br>Кликните ${state.mapScope === "world" ? "страну" : "регион"} на карте или отметьте в списке.</div>`
         : state.tab === "selected"
-          ? `<div class="empty-state">Среди выбранных ничего не найдено.<br><button type="button" class="empty-state__action" data-search-all>Искать по всем ${state.mapScope === "world" ? "странам" : "регионам"} и городам</button></div>`
+          ? `<div class="empty-state">Среди отмеченных ничего не найдено.<br><button type="button" class="empty-state__action" data-search-all>Искать по всем ${state.mapScope === "world" ? "странам" : "регионам"} и городам</button></div>`
           : '<div class="empty-state">Ничего не найдено.<br>Попробуйте изменить запрос.</div>';
     } else {
       objectList.innerHTML = sections.map(renderSection).join("");
     }
 
     fdChips.hidden = state.tab !== "regions" || state.mapScope === "world";
+    updateSelectionCount();
     updateDistrictChips();
     updateSelectFoundButton();
   }
@@ -1252,7 +1296,10 @@
 
   function renderRegionItem(feature) {
     const p = feature.properties;
-    return renderItem("region", p.id, state.selectedRegions.has(p.id), p.name, p.capital, TYPE_SHORT[p.type] || p.fd);
+    // «Амурская область» already says «Обл.»; the badge stays only where the name hides the type («Адыгея» — «Респ.»).
+    const typeWord = String(p.type || "").split(" ").pop().toLocaleLowerCase("ru");
+    const meta = typeWord && p.name.toLocaleLowerCase("ru").includes(typeWord.slice(0, -1)) ? "" : TYPE_SHORT[p.type] || p.fd || "";
+    return renderItem("region", p.id, state.selectedRegions.has(p.id), p.name, p.capital, meta);
   }
 
   function renderCityItem(city) {
@@ -1272,7 +1319,7 @@
     const names = {};
     features.forEach(f => { names[f.properties.fd] = f.properties.fd_full; });
     fdChips.innerHTML = FEDERAL_DISTRICTS.map(fd =>
-      `<button type="button" data-fd="${fd}" title="${escapeHtml(names[fd] || fd)} федеральный округ: выбрать все регионы">${fd}</button>`).join("");
+      `<button type="button" data-fd="${fd}" title="${escapeHtml(names[fd] || fd)} федеральный округ: отметить все регионы">${fd}</button>`).join("");
     fdChips.addEventListener("click", event => {
       const button = event.target.closest("[data-fd]");
       if (button) toggleDistrict(button.dataset.fd);
@@ -1305,7 +1352,7 @@
     if (!foundForSelect) { selectFoundButton.hidden = true; return; }
     const count = foundForSelect.regions.length + foundForSelect.cities.length;
     selectFoundButton.hidden = false;
-    selectFoundButton.textContent = foundAllSelected() ? `Снять найденные (${count})` : `Выбрать найденные (${count})`;
+    selectFoundButton.textContent = foundAllSelected() ? `Снять отметку с найденных (${count})` : `Отметить найденные (${count})`;
   }
 
   function selectFound() {
@@ -1582,12 +1629,22 @@
 
   function afterSelectionChange(revealId) {
     updateRouteControls();
-    document.getElementById("selected-total").textContent = selectionCount();
+    updateSelectionCount();
     updateList();
     if (revealId) revealListItem(revealId);
     updateSelectionBar();
     restyle();
     saveState();
+  }
+
+  // The «Отмечено» tab counter and the «снять все отметки» link, which only shows up when there is something to clear.
+  function updateSelectionCount() {
+    const count = selectionCount();
+    document.getElementById("selected-total").textContent = count;
+    const clear = document.getElementById("clear-selection");
+    clear.hidden = !count;
+    clear.textContent = `Снять все отметки (${count})`;
+    if (count) dismissOnboarding();
   }
 
   function revealListItem(id) {
@@ -1645,12 +1702,20 @@
       [ids[from], ids[to]] = [ids[to], ids[from]];
       state.selectedCities = new Set(ids); updateRouteControls(); restyle(); saveState();
     });
-    document.querySelectorAll(".tab").forEach(button => button.addEventListener("click", () => {
-      state.tab = button.dataset.tab;
-      syncTabs();
-      updateList();
-      persist();
-    }));
+    const tabs = [...document.querySelectorAll(".tab")];
+    const openTab = button => { state.tab = button.dataset.tab; syncTabs(); updateList(); persist(); };
+    tabs.forEach(button => {
+      button.addEventListener("click", () => openTab(button));
+      // Arrow keys walk the tabs (the list is one tab stop); Home/End jump to the ends.
+      button.addEventListener("keydown", event => {
+        const i = tabs.indexOf(button);
+        const next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[event.key];
+        if (next === undefined) return;
+        event.preventDefault();
+        const target = tabs[(next + tabs.length) % tabs.length];
+        openTab(target); target.focus();
+      });
+    });
 
     const search = document.getElementById("search");
     search.addEventListener("input", event => { state.query = event.target.value; updateList(); });
@@ -1658,6 +1723,9 @@
       const meta = event.metaKey || event.ctrlKey;
       const editingText = event.target.matches?.("input:not([type=checkbox]):not([type=range]):not([type=color]), textarea");
       if (meta && event.code === "KeyK") { event.preventDefault(); search.focus(); search.select(); return; }
+      if (meta && !event.shiftKey && event.code === "KeyS") { event.preventDefault(); closeExportMenu(); downloadProject(); return; }
+      if (meta && event.shiftKey && event.code === "KeyE") { event.preventDefault(); closeExportMenu(); exportFile("png"); return; }
+      if (event.key === "?" && !meta && !editingText) { event.preventDefault(); openShortcuts(); return; }
       if (meta && !editingText && event.code === "KeyZ") { event.preventDefault(); event.shiftKey ? redo() : undo(); return; }
       if (meta && !editingText && event.code === "KeyY") { event.preventDefault(); redo(); return; }
       if (event.key === "Escape") {
@@ -1698,7 +1766,7 @@
       state.selectedRegions.clear(); state.selectedCities.clear(); state.cityLabelOffsets = {};
       state.regionColors = {}; state.activeRegions.clear();
       afterSelectionChange();
-      showToast("Выбор очищен · ⌘Z вернёт обратно");
+      showUndoToast("Все отметки сняты");
     });
 
     // Floating bar for regions picked on the map: recolour them independently, unmark them, or drop the pick.
@@ -1709,7 +1777,7 @@
     document.getElementById("active-unmark").addEventListener("click", () => {
       [...state.activeRegions].forEach(id => setRegionMarked(id, false));
       afterSelectionChange();
-      showToast("Отметка снята · ⌘Z вернёт обратно");
+      showUndoToast("Отметка снята");
     });
     document.getElementById("active-clear").addEventListener("click", clearActiveRegions);
     // A click on empty canvas (not the end of a drag) drops the pick; region and city clicks stop propagation.
@@ -1769,20 +1837,15 @@
       syncColorField("fill-start", state.fillStart);
       updateGradientControls(); restyle(); saveState();
     });
-    bindNumber("gradient-angle", value => { state.angle = clamp(Math.round(value), 0, 360); }, () => state.angle);
-    bindNumber("fill-opacity", value => { state.opacity = clamp(Math.round(value), 10, 100) / 100; }, () => Math.round(state.opacity * 100));
+    bindRange("gradient-angle", "angle", "gradient-angle-value", v => `${v}°`, Number);
+    bindRange("fill-opacity", "opacity", "fill-opacity-value", v => `${v}%`, v => Number(v) / 100);
     bindColor("selected-color", "selectedColor");
     document.getElementById("borders-enabled").addEventListener("change", event => {
       state[state.mapStyle === "mosaic" ? "mosaicBorders" : "borders"] = event.target.checked;
       updateLabelModeControls(); restyle(); saveState();
     });
     bindColor("border-color", "borderColor");
-    document.getElementById("border-width").addEventListener("input", event => {
-      const value = Number(event.target.value);
-      if (!Number.isFinite(value)) return;
-      state.borderWidth = clamp(value, NUMBER_RANGES.borderWidth[0], NUMBER_RANGES.borderWidth[1]);
-      restyle(); saveState(true);
-    });
+    bindRange("border-width", "borderWidth", "border-width-value", v => `${String(v).replace(".", ",")} px`, Number);
     bindCheck("region-labels-enabled", "regionLabels", updateLabelModeControls);
     document.querySelectorAll("[data-labels-mode]").forEach(button => button.addEventListener("click", () => {
       state.regionLabelsMode = button.dataset.labelsMode;
@@ -1835,6 +1898,8 @@
     document.getElementById("zoom-in").addEventListener("click", () => state.frame ? zoomMap(state.zoom * 1.2) : zoomCanvas(state.viewZoom * 1.2));
     document.getElementById("zoom-out").addEventListener("click", () => state.frame ? zoomMap(state.zoom / 1.2) : zoomCanvas(state.viewZoom / 1.2));
     document.getElementById("fit-map").addEventListener("click", () => state.frame ? resetMapPlacement() : fitCanvas());
+    document.getElementById("zoom-level").addEventListener("click", () => state.frame ? zoomMap(1, undefined, undefined, false) : zoomCanvas(1));
+    document.getElementById("frame-label").addEventListener("click", () => revealSection("slide"));
     bindCanvasNavigation();
     if (window.ResizeObserver) new ResizeObserver(() => applyCanvasTransform()).observe(stage);
 
@@ -1848,19 +1913,16 @@
       exportPopover.hidden = !open;
       exportMain.setAttribute("aria-expanded", String(open));
     });
-    const importButton = document.getElementById("import-project");
-    const importPopover = document.getElementById("import-popover");
-    importButton.addEventListener("click", event => {
-      event.stopPropagation();
-      const open = importPopover.hidden;
-      closeExportMenu();
-      importPopover.hidden = !open;
-      importButton.setAttribute("aria-expanded", String(open));
-    });
-    document.getElementById("import-choose").addEventListener("click", () => {
+    document.getElementById("import-project").addEventListener("click", () => {
       closeExportMenu();
       document.getElementById("project-file-input").click();
     });
+    bindProjectDrop();
+    document.querySelectorAll("[data-png-scale]").forEach(button => button.addEventListener("click", event => {
+      event.stopPropagation();
+      state.pngScale = Number(button.dataset.pngScale);
+      updateCanvasSize(); saveState();
+    }));
     exportPopover.addEventListener("click", event => {
       const button = event.target.closest("[data-export]");
       const projectButton = event.target.closest("[data-project-action]");
@@ -1873,23 +1935,38 @@
       }
     });
     document.getElementById("project-file-input").addEventListener("change", importProjectFile);
+    bindDocumentName();
+    bindThemes();
+    bindShortcutsDialog();
+    bindOnboarding();
+    bindRangeValueEditing();
+    bindPalette();
+    bindPressedStates();
+    applyShortcutLabels();
     document.addEventListener("click", event => { if (!event.target.closest(".export-menu")) closeExportMenu(); });
 
     document.getElementById("open-library").addEventListener("click", () => document.getElementById("library-panel").classList.add("is-open"));
     document.getElementById("open-inspector").addEventListener("click", () => document.getElementById("inspector-panel").classList.add("is-open"));
+    document.getElementById("toast-action").addEventListener("click", () => {
+      const action = toastAction;
+      document.getElementById("toast").hidden = true;
+      if (action) action();
+    });
     document.querySelectorAll("[data-close-panel]").forEach(button => button.addEventListener("click", closePanels));
   }
 
   // Inspector sections collapse like PowerPoint's format pane; the folded state is a UI preference, not part of the project.
+  // A first visit opens only the slide, the map view and the fill; the rest waits folded.
   function bindSectionToggles() {
     const sections = [...document.querySelectorAll(".control-section[data-section]")];
-    const collapsed = new Set(loadUiPreference("collapsed", []).filter(id => sections.some(s => s.dataset.section === id)));
+    const collapsed = collapsedSections = new Set(loadUiPreference("folded", DEFAULT_COLLAPSED).filter(id => sections.some(s => s.dataset.section === id)));
     const apply = () => sections.forEach(section => {
       const folded = collapsed.has(section.dataset.section);
       section.classList.toggle("is-collapsed", folded);
       section.querySelector(".section-toggle").setAttribute("aria-expanded", String(!folded));
     });
     apply();
+    applySectionFolds = apply;
     sections.forEach(section => section.querySelector(".section-toggle").addEventListener("click", event => {
       const id = section.dataset.section;
       if (event.altKey) {
@@ -1900,8 +1977,18 @@
         collapsed.has(id) ? collapsed.delete(id) : collapsed.add(id);
       }
       apply();
-      saveUiPreference("collapsed", [...collapsed]);
+      saveUiPreference("folded", [...collapsed]);
     }));
+  }
+
+  // Unfolds one inspector section and brings it into view (the panel slides in on narrow screens).
+  function revealSection(id) {
+    const section = document.querySelector(`.control-section[data-section="${id}"]`);
+    if (!section) return;
+    if (collapsedSections?.delete(id)) { applySectionFolds(); saveUiPreference("folded", [...collapsedSections]); }
+    document.getElementById("inspector-panel").classList.add("is-open");
+    section.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    section.querySelector(".section-toggle").focus({ preventScroll: true });
   }
 
   function loadUiPreference(key, fallback) {
@@ -1909,6 +1996,7 @@
       const saved = JSON.parse(localStorage.getItem(UI_STORAGE_KEY));
       if (!isPlainRecord(saved) || !Object.prototype.hasOwnProperty.call(saved, key)) return fallback;
       const value = saved[key];
+      if (typeof fallback === "boolean") return typeof value === "boolean" ? value : fallback;
       return Array.isArray(value) ? value.filter(item => typeof item === "string" && item.length <= 40).slice(0, 20) : fallback;
     } catch (_) { return fallback; }
   }
@@ -2195,20 +2283,6 @@
     });
   }
 
-  // Numeric field: applies while typing (clamped), tidies the displayed value on blur/Enter.
-  function bindNumber(id, apply, current) {
-    const input = document.getElementById(id);
-    input.addEventListener("input", () => {
-      const value = Number(input.value);
-      if (!Number.isFinite(value) || input.value.trim() === "") return;
-      apply(value);
-      updateGradientControls(); restyle(); saveState(true);
-    });
-    const tidy = () => { input.value = current(); };
-    input.addEventListener("blur", tidy);
-    input.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); tidy(); input.blur(); } });
-  }
-
   // Gradient bar as in Figma: the two stops are dragged along the bar (arrow keys nudge the focused one), a click
   // selects the stop whose colour the row below edits.
   function bindGradientBar() {
@@ -2267,8 +2341,11 @@
     document.getElementById("gradient-options").hidden = !gradient;
     document.getElementById("gradient-angle-row").hidden = state.gradientType !== "linear";
     document.getElementById("gradient-type").value = state.gradientType;
-    if (document.activeElement !== document.getElementById("gradient-angle")) document.getElementById("gradient-angle").value = Math.round(state.angle);
-    if (document.activeElement !== document.getElementById("fill-opacity")) document.getElementById("fill-opacity").value = Math.round(state.opacity * 100);
+    document.getElementById("gradient-angle").value = Math.round(state.angle);
+    document.getElementById("gradient-angle-value").textContent = `${Math.round(state.angle)}°`;
+    document.getElementById("fill-opacity").value = Math.round(state.opacity * 100);
+    document.getElementById("fill-opacity-value").textContent = `${Math.round(state.opacity * 100)}%`;
+    updateThemePicker();
     const bar = document.getElementById("gradient-bar");
     bar.style.setProperty("--preview", `linear-gradient(90deg, ${state.fillStart} ${state.gradientStart}%, ${state.fillEnd} ${state.gradientEnd}%)`);
     bar.querySelectorAll(".gradient-stop").forEach(stop => {
@@ -2292,7 +2369,7 @@
     option.classList.toggle("is-disabled", !font.pack);
     input.disabled = !font.pack;
     document.getElementById("font-companion-text").textContent = font.pack
-      ? `Приложить шрифт ${font.name}: TTF и лицензия, чтобы PPTX и SVG открылись с тем же шрифтом на другом компьютере`
+      ? `Для PPTX и SVG: приложить шрифт ${font.name} (TTF и лицензия), чтобы подписи выглядели так же на другом компьютере`
       : `${font.name} есть на любом компьютере — прикладывать шрифт не нужно`;
   }
 
@@ -2343,6 +2420,8 @@
       const active = el.dataset.tab === state.tab;
       el.classList.toggle("is-active", active);
       el.setAttribute("aria-selected", active ? "true" : "false");
+      el.tabIndex = active ? 0 : -1;
+      if (active) objectList.setAttribute("aria-labelledby", el.id);
     });
   }
 
@@ -2382,6 +2461,7 @@
     document.getElementById("region-font-size-value").textContent = `${state.regionFontSize} px`;
     document.getElementById("city-font-size-value").textContent = `${state.cityFontSize} px`;
     document.getElementById("label-halo-width-value").textContent = `${String(state.labelHaloWidth).replace(".", ",")} px`;
+    document.getElementById("border-width-value").textContent = `${String(state.borderWidth).replace(".", ",")} px`;
     document.getElementById("rotation-value").textContent = `${Math.round(state.rotation)}°`;
     document.getElementById("lens-strength-value").textContent = `${Math.round(state.lensStrength)}%`;
     updateFontCompanionOption();
@@ -2393,9 +2473,10 @@
     document.getElementById("route-width-value").textContent = `${state.routeWidth} px`;
     document.getElementById("route-bend-value").textContent = `${state.routeBend}%`;
     document.querySelectorAll("[data-ratio]").forEach(el => el.classList.toggle("is-active", el.dataset.ratio === state.ratio));
+    syncDocumentName();
     syncTabs();
     document.getElementById("search").value = state.query;
-    document.getElementById("selected-total").textContent = selectionCount();
+    updateSelectionCount();
   }
 
   function resetAll() {
@@ -2404,7 +2485,7 @@
     state.selectedRegions.clear(); state.selectedCities.clear(); state.cityLabelOffsets = {};
     state.regionColors = {}; state.activeRegions.clear(); state.mapSelected = false;
     syncDataset(); syncControls(); updateCanvasSize(); updateList(); updateSelectionBar(); render(); saveState();
-    showToast("Настройки сброшены · ⌘Z вернёт всё обратно");
+    showUndoToast("Настройки сброшены");
   }
 
   // Persistence: localStorage on every change; the undo history only records document changes (not view navigation).
@@ -2524,6 +2605,11 @@
     const input = event.currentTarget;
     const file = input.files?.[0];
     if (!file) return;
+    try { await openProjectFile(file); }
+    finally { input.value = ""; }
+  }
+
+  async function openProjectFile(file) {
     try {
       if (!file.name.toLocaleLowerCase("ru").endsWith(".json")) throw new Error("нужен файл с расширением .json");
       if (file.size < 2 || file.size > MAX_PROJECT_BYTES) throw new Error("размер проекта должен быть не больше 256 КБ");
@@ -2534,9 +2620,24 @@
     } catch (error) {
       console.warn("Project import rejected:", error);
       showToast(`Файл не открыт: ${error.message || "неверный формат"}`);
-    } finally {
-      input.value = "";
     }
+  }
+
+  // A project file dragged over the board opens like «Открыть»; anything else is left to the browser.
+  function bindProjectDrop() {
+    const overlay = document.getElementById("drop-overlay");
+    let depth = 0;
+    const hasFiles = event => [...(event.dataTransfer?.types || [])].includes("Files");
+    stage.addEventListener("dragenter", event => { if (!hasFiles(event)) return; event.preventDefault(); depth++; overlay.hidden = false; });
+    stage.addEventListener("dragover", event => { if (!hasFiles(event)) return; event.preventDefault(); event.dataTransfer.dropEffect = "copy"; });
+    stage.addEventListener("dragleave", () => { depth = Math.max(0, depth - 1); if (!depth) overlay.hidden = true; });
+    stage.addEventListener("drop", event => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      depth = 0; overlay.hidden = true;
+      const file = event.dataTransfer.files?.[0];
+      if (file) openProjectFile(file);
+    });
   }
 
   function parseProjectDocument(text) {
@@ -2577,6 +2678,10 @@
       }
       else if (ENUM_SETTINGS[key]) valid = ENUM_SETTINGS[key].includes(value);
       else if (key === "routeHub") valid = value === "" || (typeof value === "string" && cityIds.has(value));
+      else if (key === "documentName") {
+        valid = typeof value === "string" && value.length <= 80;
+        if (valid) value = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+      }
       if (!valid) {
         if (strict) throw new Error(`недопустимое значение настройки «${key}»`);
         return;
@@ -2712,7 +2817,7 @@
   // namespaces instead of as literal element names.
   function exportMetadata() {
     const escape = text => text.replace(/[<>&]/g, ch => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[ch]));
-    const title = state.mapScope === "world" ? "Карта мира" : "Карта России";
+    const title = documentTitle();
     const xml = `<metadata xmlns="${SVG_NS}"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#"><cc:Work rdf:about="">` +
       `<dc:format>image/svg+xml</dc:format><dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>` +
       `<dc:title>${escape(title)}</dc:title><dc:description>${escape(PROVENANCE)}</dc:description>` +
@@ -2722,7 +2827,7 @@
   }
 
   async function exportFile(format) {
-    const label = format === "copy" ? "копию" : format.toUpperCase();
+    const label = format === "copy" ? "PNG" : format.toUpperCase();
     try {
       showToast(`Готовим ${label}…`, true);
       if (format === "copy") {
@@ -2733,11 +2838,12 @@
       const stem = exportStem();
       let blob;
       if (format === "svg") blob = new Blob([getExportSvg().xml], { type: "image/svg+xml;charset=utf-8" });
-      else if (format === "png") blob = (await renderPng(2)).blob;
+      else if (format === "png") blob = (await renderPng(state.pngScale)).blob;
       else if (format === "pptx") blob = await exportPptx();
       else return;
       const font = LABEL_FONTS[state.labelFont];
-      const withFont = state.fontCompanion && !!font.pack;
+      // The font only matters where the labels stay text: PPTX and SVG. A PNG has them baked in.
+      const withFont = (format === "pptx" || format === "svg") && state.fontCompanion && !!font.pack;
       if (state.projectCompanion || withFont) {
         const attached = await downloadBundle(blob, `${stem}.${format}`, stem, { project: state.projectCompanion, font: withFont ? font : null });
         showToast(`${label}${attached.join("")} — одним ZIP`);
@@ -2802,7 +2908,7 @@
 
   async function copyPngToClipboard() {
     if (!navigator.clipboard?.write || !window.ClipboardItem) throw new Error("браузер не поддерживает копирование изображений");
-    const blobPromise = renderPng(2).then(result => result.blob);
+    const blobPromise = renderPng(state.pngScale).then(result => result.blob);
     try {
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blobPromise })]);
     } catch (_) {
@@ -2986,24 +3092,285 @@
   function showTooltip(event, html) { tooltip.innerHTML = html; tooltip.hidden = false; tooltip.style.left = `${event.clientX}px`; tooltip.style.top = `${event.clientY}px`; }
   function hideTooltip() { tooltip.hidden = true; hoverDots(null); setListHover(null); }
 
-  function showToast(message, persistent) {
+  // `action` adds a button to the toast ({ label, run }); such toasts stay a little longer so the button can be reached.
+  function showToast(message, persistent, action) {
     const toast = document.getElementById("toast");
-    clearTimeout(toastTimer); toast.textContent = message; toast.hidden = false;
-    if (!persistent) toastTimer = setTimeout(() => { toast.hidden = true; }, 2400);
+    const button = document.getElementById("toast-action");
+    clearTimeout(toastTimer);
+    document.getElementById("toast-text").textContent = message;
+    toastAction = action ? action.run : null;
+    button.hidden = !action;
+    if (action) button.textContent = action.label;
+    toast.hidden = false;
+    if (!persistent) toastTimer = setTimeout(() => { toast.hidden = true; toastAction = null; }, action ? 6000 : 2400);
+  }
+
+  // Destructive steps announce themselves with an undo button — the only undo on a phone, where there is no ⌘Z.
+  function showUndoToast(message) {
+    showToast(message, false, { label: "Отменить", run: undo });
+  }
+
+  // Document name: the title in the header, the SVG/PPTX title and the stem of exported files. Empty means «use the default».
+  function documentTitle() {
+    return state.documentName || (state.mapScope === "world" ? "Карта мира" : "Карта России");
+  }
+
+  function syncDocumentName() {
+    const input = document.getElementById("document-name");
+    if (!input || document.activeElement === input) return;
+    input.value = documentTitle();
+    input.placeholder = state.mapScope === "world" ? "Карта мира" : "Карта России";
+    input.size = Math.max(6, input.value.length + 1);
+  }
+
+  function bindDocumentName() {
+    const input = document.getElementById("document-name");
+    input.addEventListener("input", () => {
+      input.size = Math.max(6, input.value.length + 1);
+      const name = input.value.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 80);
+      state.documentName = name === input.placeholder ? "" : name;
+      saveState(true);
+    });
+    input.addEventListener("keydown", event => {
+      if (event.key === "Enter") { event.preventDefault(); input.blur(); }
+      if (event.key === "Escape") { event.stopPropagation(); input.blur(); }
+    });
+    input.addEventListener("blur", syncDocumentName);
+  }
+
+  // Theme chips: a preview of slide, land and accent; the chip matching the current colours is shown as active.
+  function bindThemes() {
+    const picker = document.getElementById("theme-picker");
+    picker.innerHTML = THEMES.map(theme => {
+      const c = theme.colors;
+      const land = c.gradient ? `linear-gradient(90deg, ${c.fillStart}, ${c.fillEnd})` : c.fillStart;
+      return `<button type="button" data-theme="${theme.id}" title="Тема «${theme.name}»"><span class="theme-swatch" style="background:${c.background}" aria-hidden="true"><i style="background:${land}"></i><b style="background:${c.selectedColor}"></b></span>${theme.name}</button>`;
+    }).join("");
+    picker.addEventListener("click", event => {
+      const button = event.target.closest("[data-theme]");
+      const theme = button && THEMES.find(t => t.id === button.dataset.theme);
+      if (!theme) return;
+      Object.assign(state, theme.colors);
+      syncControls(); restyle(); saveState();
+      showUndoToast(`Тема «${theme.name}»`);
+    });
+  }
+
+  function updateThemePicker() {
+    document.querySelectorAll("[data-theme]").forEach(button => {
+      const theme = THEMES.find(t => t.id === button.dataset.theme);
+      button.classList.toggle("is-active", Object.entries(theme.colors).every(([key, value]) => key === "fillEnd" && !theme.colors.gradient ? true : state[key] === value));
+    });
+  }
+
+  function bindShortcutsDialog() {
+    const dialog = document.getElementById("shortcuts-dialog");
+    document.getElementById("open-shortcuts").addEventListener("click", openShortcuts);
+    document.querySelectorAll("[data-open-shortcuts]").forEach(button => button.addEventListener("click", openShortcuts));
+    dialog.querySelector("[data-close-dialog]").addEventListener("click", () => dialog.close());
+    dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
+  }
+
+  function openShortcuts() {
+    const dialog = document.getElementById("shortcuts-dialog");
+    if (dialog.open) return;
+    closeExportMenu();
+    if (dialog.showModal) dialog.showModal(); else dialog.setAttribute("open", "");
+  }
+
+  // First visit: a card with the three steps. It goes away for good on «Понятно» or with the first marked object.
+  function bindOnboarding() {
+    const card = document.getElementById("onboarding");
+    card.hidden = loadUiPreference("onboarded", false);
+    document.getElementById("onboarding-ok").addEventListener("click", dismissOnboarding);
+  }
+
+  function dismissOnboarding() {
+    const card = document.getElementById("onboarding");
+    if (card.hidden) return;
+    card.hidden = true;
+    saveUiPreference("onboarded", true);
+  }
+
+  // Every slider's value is also a field: click it (or focus it and press Enter) and type an exact number.
+  // The typed value goes through the slider itself — clamped and snapped to its step — so the usual handlers apply.
+  function bindRangeValueEditing() {
+    document.querySelectorAll(".range-row").forEach(row => {
+      const output = row.querySelector("output");
+      const range = row.querySelector('input[type="range"]');
+      if (!output || !range) return;
+      const label = row.querySelector(":scope > span")?.firstChild?.textContent.trim() || "значение";
+      output.tabIndex = 0;
+      output.setAttribute("role", "button");
+      output.setAttribute("aria-label", `${label}: ввести значение`);
+      output.title = "Ввести точное значение";
+      const edit = event => {
+        event.preventDefault(); event.stopPropagation();
+        if (range.disabled || row.querySelector(".range-edit")) return;
+        const field = document.createElement("input");
+        field.className = "range-edit";
+        field.inputMode = "decimal";
+        field.value = String(range.value).replace(".", ",");
+        field.setAttribute("aria-label", label);
+        output.hidden = true;
+        output.after(field);
+        field.focus(); field.select();
+        let done = false;
+        const finish = commit => {
+          if (done) return;
+          done = true;
+          const value = Number(field.value.replace(",", ".").replace(/[^\d.+-]/g, ""));
+          field.remove(); output.hidden = false;
+          if (commit && field.value.trim() !== "" && Number.isFinite(value)) {
+            const min = Number(range.min), max = Number(range.max), step = Number(range.step) || 1;
+            const snapped = clamp(Math.round((value - min) / step) * step + min, min, max);
+            range.value = String(Number(snapped.toFixed(4)));
+            range.dispatchEvent(new Event("input", { bubbles: true }));
+            range.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+          output.focus({ preventScroll: true });
+        };
+        field.addEventListener("keydown", e => {
+          if (e.key === "Enter") { e.preventDefault(); finish(true); }
+          if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); finish(false); }
+        });
+        field.addEventListener("blur", () => finish(true));
+        field.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); });
+      };
+      output.addEventListener("click", edit);
+      output.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") edit(event); });
+    });
+  }
+
+  // Project colours under a focused colour field: every colour the map uses (plus recently picked ones) one click
+  // away, and the browser's eyedropper where it exists (Chromium).
+  function projectColors() {
+    const used = [...COLOR_SETTINGS].map(key => state[key]).concat(Object.values(state.regionColors), recentColors);
+    return [...new Set(used.filter(Boolean).map(c => c.toLowerCase()))].slice(0, 24);
+  }
+
+  function bindPalette() {
+    const pop = document.createElement("div");
+    pop.className = "palette-pop";
+    pop.hidden = true;
+    pop.setAttribute("role", "group");
+    pop.setAttribute("aria-label", "Цвета проекта");
+    document.body.append(pop);
+    let target = null;
+    const apply = hex => {
+      if (!target || !/^#[0-9a-f]{6}$/i.test(hex)) return;
+      target.value = hex.toLowerCase();
+      target.dispatchEvent(new Event("input", { bubbles: true }));
+      target.dispatchEvent(new Event("change", { bubbles: true }));
+      rememberColor(hex);
+      open(target.closest(".swatch"));
+    };
+    const open = swatch => {
+      target = swatch.querySelector('input[type="color"]');
+      if (!target) return;
+      const picker = "EyeDropper" in window
+        ? '<button type="button" class="palette-pop__pick" data-eyedropper title="Взять цвет с экрана" aria-label="Пипетка: взять цвет с экрана"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 7 3 3M5 19l1.5-.5L17 8a2.1 2.1 0 0 0-3-3L3.5 15.5 3 17Z"/></svg></button>'
+        : "";
+      pop.innerHTML = `<span class="palette-pop__title">Цвета проекта</span>${projectColors().map(c => `<button type="button" style="--c:${c}" data-color="${c}" title="${c.toUpperCase()}" aria-label="${c.toUpperCase()}"></button>`).join("")}${picker}`;
+      pop.hidden = false;
+      const rect = swatch.getBoundingClientRect();
+      const left = clamp(rect.right - pop.offsetWidth, 8, window.innerWidth - pop.offsetWidth - 8);
+      const below = rect.bottom + 6 + pop.offsetHeight < window.innerHeight;
+      pop.style.left = `${left}px`;
+      pop.style.top = `${below ? rect.bottom + 6 : rect.top - pop.offsetHeight - 6}px`;
+    };
+    const close = () => { pop.hidden = true; target = null; };
+    document.addEventListener("focusin", event => {
+      const swatch = event.target.closest?.(".swatch");
+      if (swatch && event.target.matches(".hex-input")) open(swatch);
+      else if (!pop.contains(event.target)) close();
+    });
+    document.addEventListener("pointerdown", event => {
+      if (!pop.hidden && !pop.contains(event.target) && !event.target.closest(".swatch")) close();
+    });
+    document.addEventListener("keydown", event => { if (event.key === "Escape") close(); });
+    // Keep the HEX field focused while a swatch in the pop is clicked.
+    pop.addEventListener("pointerdown", event => event.preventDefault());
+    pop.addEventListener("click", async event => {
+      const swatchButton = event.target.closest("[data-color]");
+      if (swatchButton) { apply(swatchButton.dataset.color); return; }
+      if (event.target.closest("[data-eyedropper]") && target) {
+        const keep = target;
+        try {
+          const result = await new window.EyeDropper().open();
+          target = keep; apply(result.sRGBHex);
+        } catch (_) { /* cancelled */ }
+      }
+    });
+    document.addEventListener("change", event => { if (event.target.matches?.('input[type="color"]')) rememberColor(event.target.value); });
+  }
+
+  function rememberColor(hex) {
+    const value = String(hex).toLowerCase();
+    const i = recentColors.indexOf(value);
+    if (i >= 0) recentColors.splice(i, 1);
+    recentColors.unshift(value);
+    recentColors.length = Math.min(recentColors.length, 8);
+  }
+
+  // Toggle buttons draw their state with `is-active`; screen readers get the same state as aria-pressed.
+  function bindPressedStates() {
+    const selector = ".segmented button, .projection-grid button, .shape-picker button, .view-switch button, .theme-picker button";
+    const sync = button => button.setAttribute("aria-pressed", String(button.classList.contains("is-active")));
+    document.querySelectorAll(selector).forEach(sync);
+    new MutationObserver(records => records.forEach(record => {
+      if (record.target.matches?.(selector)) sync(record.target);
+      record.addedNodes?.forEach(node => { if (node.nodeType === 1) node.querySelectorAll?.(selector).forEach(sync); });
+    })).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"], childList: true });
+  }
+
+  function applyShortcutLabels() {
+    document.querySelectorAll("[data-shortcut]").forEach(el => { el.textContent = keyLabel(el.dataset.shortcut); });
+    const kbd = document.querySelector(".search-field kbd");
+    if (kbd) kbd.textContent = keyLabel("⌘ K").replace("+ ", "+");
+    document.getElementById("undo").title = `Отменить (${keyLabel("⌘Z")})`;
+    document.getElementById("redo").title = `Повторить (${keyLabel(IS_MAC ? "⇧⌘Z" : "⌘Y")})`;
+  }
+
+  // The map is one tab stop: arrows walk from region to region by direction, Enter or Space marks.
+  function setRegionTabStop(id) {
+    focusRegionId = id;
+    regionPaths.attr("tabindex", d => d.properties.id === id ? 0 : -1);
+  }
+
+  function moveRegionFocus(fromId, key) {
+    const dir = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowDown: [0, 1], ArrowUp: [0, -1] }[key];
+    const from = features.find(f => f.properties.id === fromId);
+    if (!dir || !from || !path) return;
+    const [fx, fy] = path.centroid(from);
+    let best = null, bestScore = Infinity;
+    features.forEach(f => {
+      if (f === from) return;
+      const [x, y] = path.centroid(f);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      const along = (x - fx) * dir[0] + (y - fy) * dir[1];
+      if (along <= 0) return;
+      const across = Math.abs((x - fx) * dir[1] - (y - fy) * dir[0]);
+      const score = along + across * 2.5;
+      if (score < bestScore) { bestScore = score; best = f; }
+    });
+    if (!best) return;
+    setRegionTabStop(best.properties.id);
+    regionsLayer.select(`[data-id="${CSS.escape(best.properties.id)}"]`).node()?.focus();
   }
 
   function closePanels() { document.querySelectorAll(".panel-column").forEach(panel => panel.classList.remove("is-open")); }
-  // Closes both header popovers (export and import).
   function closeExportMenu() {
     document.getElementById("export-popover").hidden = true;
     document.getElementById("export-main").setAttribute("aria-expanded", "false");
-    document.getElementById("import-popover").hidden = true;
-    document.getElementById("import-project").setAttribute("aria-expanded", "false");
   }
   function exportStem() {
     const now = new Date();
     const pad = n => String(n).padStart(2, "0");
-    return `${state.mapScope === "world" ? "karta-mira" : "karta-rossii"}-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+    // A renamed map exports under its name (characters that file systems reject become dashes).
+    const named = state.documentName.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").replace(/^[-. ]+|[-. ]+$/g, "").slice(0, 60);
+    const base = named || (state.mapScope === "world" ? "karta-mira" : "karta-rossii");
+    return `${base}-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
   }
   function exportFilename(extension) { return `${exportStem()}.${extension}`; }
   function downloadBlob(blob, filename) {
