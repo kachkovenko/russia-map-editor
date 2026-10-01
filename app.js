@@ -29,7 +29,7 @@
   const PROJECTION_HELP = Object.freeze({
     conic: "Равновеликая проекция: площади регионов сравниваются корректнее.",
     mercator: "Привычный вид веб-карт. Северные территории визуально увеличены.",
-    globe: "Карта лежит на глобусе, вид сверху. Крестик — точка, над которой висит наблюдатель: перетащите его; двойной клик возвращает в центр. «Перспектива» — высота: ближе — центр крупнее, края уходят за горизонт."
+    globe: "Карта лежит на глобусе, вид сверху. Значок — точка, над которой висит наблюдатель: перетащите его; двойной клик возвращает в центр. «Перспектива» — высота: ближе — центр крупнее, края уходят за горизонт."
   });
 
   // Label fonts: six Google Fonts under the SIL Open Font License, self-hosted (bold Latin + Cyrillic subsets for the
@@ -164,6 +164,8 @@
   // The map as an object: its unturned box on the slide, the centre it turns about and the current turn (radians).
   let mapFrame = { x: 0, y: 0, width: BASE_WIDTH, height: RATIO_HEIGHTS["16:9"], center: [BASE_WIDTH / 2, RATIO_HEIGHTS["16:9"] / 2], angle: 0, anglePerDegree: 0 };
   let lensDrag = null;
+  // The flat map under the Russia-only globe: the grip is dragged over its image (null for the full sphere).
+  let lensBase = null;
   const activePointers = new Map();
   const history = { past: [], future: [], current: null, burst: null };
   function mapFont() { return LABEL_FONTS[state.labelFont].stack; }
@@ -365,6 +367,7 @@
   }
 
   function makeProjection() {
+    lensBase = null;
     if (state.mapScope === "world" || (state.projection === "globe" && state.globeSurface)) {
       const globe = state.projection === "globe";
       const p = globe ? perspectiveProjection(state.lensStrength).rotate([-state.lensLon,-state.lensLat,-state.rotation])
@@ -408,6 +411,7 @@
       // crosshair keeps its size while the rest curves away. Turning rolls the view about the frame's centre.
       const viewpoint = [state.lensLon, state.lensLat];
       const anchor = straight(viewpoint);
+      lensBase = straight;
       build = r => perspectiveProjection(state.lensStrength).scale(scale).rotate([-viewpoint[0], -viewpoint[1], -r]).translate(anchor);
       level = build(0);
       frameBox = d3.geoPath(level).bounds(collection);
@@ -1487,8 +1491,12 @@
   function turnGlobe(lon0, lat0, dx, dy) {
     const radius = Math.max(projection.scale() * screenScale(), 1);
     const k = 90 / radius;
-    state.lensLon = Math.round(((lon0 - dx * k + 540) % 360 - 180) * 100) / 100;
-    state.lensLat = Math.round(clamp(lat0 + dy * k, NUMBER_RANGES.lensLat[0], NUMBER_RANGES.lensLat[1]) * 100) / 100;
+    setViewpoint((lon0 - dx * k + 540) % 360 - 180, lat0 + dy * k);
+  }
+
+  function setViewpoint(lon, lat) {
+    state.lensLon = Math.round(clamp(lon, NUMBER_RANGES.lensLon[0], NUMBER_RANGES.lensLon[1]) * 100) / 100;
+    state.lensLat = Math.round(clamp(lat, NUMBER_RANGES.lensLat[0], NUMBER_RANGES.lensLat[1]) * 100) / 100;
     const lonInput = document.getElementById("lens-lon"), latInput = document.getElementById("lens-lat");
     if (lonInput) { lonInput.value = state.lensLon; document.getElementById("lens-lon-value").textContent = `${Math.round(state.lensLon)}°`; }
     if (latInput) { latInput.value = state.lensLat; document.getElementById("lens-lat-value").textContent = `${Math.round(state.lensLat)}°`; }
@@ -1508,7 +1516,16 @@
       event.stopPropagation();
       if (Math.hypot(event.clientX - lensDrag.startX, event.clientY - lensDrag.startY) > 2) lensDrag.moved = true;
       if (!lensDrag.moved) return;
-      turnGlobe(lensDrag.lon, lensDrag.lat, event.clientX - lensDrag.startX, event.clientY - lensDrag.startY);
+      if (lensBase) {
+        // Russia on the globe: the grip follows the pointer over the flat map, and the viewpoint becomes the place
+        // under it — the bulge travels with the hand, as before the full-sphere grip was added.
+        const geo = lensBase.invert(turnPoint(slidePoint(event.clientX, event.clientY), mapFrame.center, -mapFrame.angle));
+        if (!geo || !geo.every(Number.isFinite)) return;
+        setViewpoint(geo[0], geo[1]);
+      } else {
+        // The full sphere turns under the grip: a drag across the globe's radius is a quarter turn.
+        turnGlobe(lensDrag.lon, lensDrag.lat, event.clientX - lensDrag.startX, event.clientY - lensDrag.startY);
+      }
       scheduleRender(); saveState(true);
     });
     const end = event => {
