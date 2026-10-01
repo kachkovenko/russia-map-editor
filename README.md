@@ -67,11 +67,13 @@ python3 -m http.server 8765
 
 ## Публикация на GitHub Pages
 
-1. Создайте пустой репозиторий на GitHub и загрузите в него содержимое этой папки.
-2. В `Settings → Pages` выберите `Deploy from a branch`, ветку `main`, папку `/ (root)`.
-3. Там же в `Custom domain` сначала укажите `map.kachkovenko.com` и сохраните. Файл `CNAME` уже добавлен в проект.
-4. После этого у DNS-провайдера создайте CNAME-запись: имя `map`, значение `<ваш-github-логин>.github.io`.
-5. Когда GitHub подтвердит DNS и выпустит сертификат, включите `Enforce HTTPS` в настройках Pages.
+Сейчас редактор опубликован по адресу https://kachkovenko.github.io/russia-map-editor/ — GitHub Pages собирает его из ветки `main`, папка `/ (root)`.
+
+Чтобы перейти на свой домен `map.kachkovenko.com`:
+
+1. У DNS-провайдера (reg.ru) создайте CNAME-запись: имя `map`, значение `kachkovenko.github.io`.
+2. В `Settings → Pages → Custom domain` укажите `map.kachkovenko.com` и сохраните — GitHub сам добавит в ветку файл `CNAME`. Раньше он лежал в проекте, но был убран: без DNS-записи Pages перенаправлял бы на несуществующий адрес.
+3. Когда GitHub подтвердит DNS и выпустит сертификат, включите `Enforce HTTPS`.
 
 Альтернатива — Cloudflare Pages или Vercel: импортируйте репозиторий как статический сайт, команда сборки не нужна, output directory — корень проекта. Затем добавьте `map.kachkovenko.com` в настройках доменов сервиса и подтвердите предложенную DNS-запись.
 
