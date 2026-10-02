@@ -251,6 +251,8 @@
     history.current = snapshot();
     updateHistoryButtons();
     applyLabelFont();
+    openLinkedMap();
+    window.addEventListener("hashchange", openLinkedMap);
   }
 
   function syncDataset() {
@@ -2612,6 +2614,53 @@
     }
   }
 
+  // A map described in the address (#regions=Татарстан&cities=Казань, format in llms.txt), typically handed over by an
+  // AI assistant. It replaces the open map as one undoable step, and the address is cleared so that a reload does not
+  // apply it again over later edits.
+  function openLinkedMap() {
+    let link;
+    try { link = MapLink.fromLocation(location, linkContext()); }
+    catch (error) {
+      console.warn("Map link rejected:", error);
+      clearLink();
+      showToast(`Ссылка не открыта: ${error.message || "неверный формат"}`);
+      return;
+    }
+    if (!link) return;
+    clearLink();
+    const { project } = link;
+    applyDocument({
+      settings: sanitizeSettings(project.settings),
+      regions: sanitizeIds(project.regions, regionIds, regionIds.size),
+      cities: sanitizeIds(project.cities, cityIds, cityIds.size),
+      labelOffsets: sanitizeOffsets(project.labelOffsets, cityIds),
+      regionColors: sanitizeColors(project.regionColors, regionIds)
+    });
+    saveState();
+    if (state.selectedRegions.size || state.selectedCities.size) dismissOnboarding();
+    const missed = link.problems.length ? `. Не распознано: ${link.problems.slice(0, 4).join(", ")}${link.problems.length > 4 ? ` и ещё ${link.problems.length - 4}` : ""}` : "";
+    showUndoToast(`Карта открыта по ссылке${missed}`);
+  }
+
+  function linkContext() {
+    const catalogues = {};
+    Object.entries(datasets).forEach(([scope, set]) => {
+      catalogues[scope] = { regions: set.features.map(d => d.properties), cities: set.cities };
+    });
+    return {
+      defaults, settingKeys: PROJECT_SETTING_KEYS, themes: THEMES, catalogues,
+      spec: { booleans: BOOLEAN_SETTINGS, colors: COLOR_SETTINGS, ranges: NUMBER_RANGES, enums: ENUM_SETTINGS },
+      parseProject: text => {
+        if (text.length > MAX_PROJECT_BYTES) throw new Error("проект в ссылке больше 256 КБ");
+        return parseProjectDocument(text);
+      }
+    };
+  }
+
+  function clearLink() {
+    try { window.history.replaceState(null, "", location.pathname); } catch (_) {}
+  }
+
   function snapshot() {
     const doc = createProjectDocument();
     VIEW_KEYS.forEach(key => delete doc.settings[key]);
@@ -3254,6 +3303,13 @@
       if (item.dataset.help === "guide") showOnboarding();
       if (item.dataset.help === "shortcuts") openShortcuts();
       if (item.dataset.help === "support") openDialog("support-dialog");
+      if (item.dataset.help === "ai") openDialog("ai-dialog");
+    });
+    document.getElementById("ai-copy").addEventListener("click", async () => {
+      const prompt = document.getElementById("ai-prompt");
+      try { await navigator.clipboard.writeText(prompt.value); }
+      catch (_) { prompt.select(); document.execCommand("copy"); }
+      showToast("Инструкция скопирована — вставьте её в чат с ИИ и допишите задачу");
     });
     document.querySelectorAll("[data-open-shortcuts]").forEach(el => el.addEventListener("click", openShortcuts));
     document.querySelectorAll("dialog").forEach(dialog => {

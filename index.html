@@ -7,8 +7,10 @@
   <title>Редактор карты России</title>
   <meta name="description" content="Онлайн-редактор карты России для презентаций: регионы, города, цвета, проекции и экспорт в PNG, SVG и PPTX.">
   <link rel="stylesheet" href="styles.css">
+  <link rel="help" type="text/plain" href="llms.txt" title="Как ИИ-ассистенту собрать карту ссылкой">
 </head>
 <body>
+  <noscript><p>Редактор карты России и мира для презентаций. ИИ-ассистенты могут передать пользователю готовую карту ссылкой вида https://map.kachkovenko.com/#regions=Татарстан,Москва&amp;cities=Казань — формат описан в https://map.kachkovenko.com/llms.txt</p></noscript>
   <div class="app-shell">
     <header class="topbar">
       <a class="brand" href="https://kachkovenko.com" target="_blank" rel="noopener" aria-label="Качковенко — открыть сайт">
@@ -48,6 +50,7 @@
           <div class="export-popover help-popover" id="help-popover" role="menu" hidden>
             <button type="button" role="menuitem" data-help="guide"><b>Как собрать карту</b><small>Три шага от выбора регионов до экспорта</small></button>
             <button type="button" role="menuitem" data-help="shortcuts"><b>Горячие клавиши</b><small>Все сочетания и жесты</small><kbd class="shortcut">?</kbd></button>
+            <button type="button" role="menuitem" data-help="ai"><b>Карта через ИИ</b><small>Инструкция для ChatGPT, Claude и других</small></button>
             <button type="button" role="menuitem" data-help="support"><b>Поддержка</b><small>Вопросы и предложения</small></button>
             <div class="export-popover__divider"></div>
             <a role="menuitem" href="https://github.com/kachkovenko/russia-map-editor/blob/main/LICENSE.md" target="_blank" rel="noopener"><b>Лицензия</b><small>Карты свободны, код — только для просмотра</small></a>
@@ -470,6 +473,26 @@
     </div>
   </dialog>
 
+  <dialog class="shortcuts ai-help" id="ai-dialog" aria-labelledby="ai-title">
+    <div class="shortcuts__head"><h2 id="ai-title">Карта через ИИ</h2><button type="button" class="icon-button" data-close-dialog aria-label="Закрыть">×</button></div>
+    <div class="support__body">
+      <p>ИИ-ассистент может собрать черновик карты за вас: отметить регионы и города из таблицы или письма, раскрасить регионы по числам. Скопируйте инструкцию, вставьте её в чат и допишите задачу. Ассистент ответит ссылкой — откройте её, и карта соберётся здесь, дальше всё правится как обычно.</p>
+      <textarea class="ai-help__prompt" id="ai-prompt" readonly rows="9" aria-label="Инструкция для ИИ-ассистента">Помоги собрать карту в редакторе map.kachkovenko.com. Ответь ссылкой, которую я открою в браузере и доработаю вручную:
+https://map.kachkovenko.com/#regions=…&amp;cities=…
+
+Параметры (значения через запятую, названия по-русски, пробелы заменяй на +):
+• regions — регионы России или федеральные округа (ЦФО); для стран мира добавь scope=world
+• cities — города; route=chain соединит их линией по порядку, route=hub&amp;hub=Город — лучами от одного
+• colors — свои цвета регионов: Татарстан:e63946;Москва:1d3557
+• values — числа по регионам, редактор сам раскрасит от светлого к насыщенному: Коми:3,5;Тыва:1,2 (с valueColors=ffffff,1d3557 — свои два цвета)
+• theme — calm, contrast, mono, dark или warm; style=mosaic — карта из точек; projection=globe — глобус
+Полное описание: https://map.kachkovenko.com/llms.txt
+
+Задача: </textarea>
+      <button type="button" class="button button--primary support__link" id="ai-copy">Скопировать инструкцию</button>
+    </div>
+  </dialog>
+
   <dialog class="shortcuts" id="shortcuts-dialog" aria-labelledby="shortcuts-title">
     <div class="shortcuts__head"><h2 id="shortcuts-title">Горячие клавиши</h2><button type="button" class="icon-button" data-close-dialog aria-label="Закрыть">×</button></div>
     <dl class="shortcuts__list">
@@ -498,6 +521,7 @@
   <script src="data/world-cities.js"></script>
   <script src="lib/map-routes.js"></script>
   <script src="lib/map-project.js"></script>
+  <script src="lib/map-link.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
