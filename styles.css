@@ -79,7 +79,6 @@ button { color: inherit; }
 .button svg { display: block; flex: none; width: 16px; height: 16px; }
 .button--ghost { color: var(--text-soft); }
 .button--ghost:hover { color: var(--ink); background: var(--hover); }
-.button--ghost.is-armed { color: var(--accent); background: var(--accent-soft); }
 .button--secondary { color: var(--ink); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
 .button--secondary:hover { background: var(--hover); }
 .button--primary { color: #fff; background: var(--accent); box-shadow: 0 2px 3px rgba(66,99,235,.14); }
@@ -295,7 +294,10 @@ kbd { padding: 2px 6px; color: var(--muted); border: 1px solid var(--line); bord
 .shortcuts::backdrop { background: rgba(28,39,64,.28); }
 .shortcuts__head { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px 22px; }
 .shortcuts__head h2 { margin: 0; font-size: 15px; font-weight: 600; }
-.support { width: min(92vw, 400px); }
+.support, .confirm { width: min(92vw, 400px); }
+.confirm__body { padding: 4px 22px 20px; color: var(--text-soft); font-size: 13px; line-height: 1.5; }
+.confirm__body p { margin: 0 0 20px; }
+.confirm__actions { display: flex; justify-content: flex-end; gap: 8px; }
 .support__body { padding: 4px 22px 22px; color: var(--text-soft); font-size: 13px; line-height: 1.5; }
 .support__body p { margin: 0 0 16px; }
 .support__link { width: 100%; text-decoration: none; }

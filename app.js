@@ -2047,21 +2047,11 @@
     } catch (_) {}
   }
 
+  // «Сбросить» asks first in a modal; «Отмена» has the focus, so Enter or Esc leave the map as it is.
   function bindResetButton() {
-    const button = document.getElementById("reset-all");
-    let armed = null;
-    const disarm = () => { clearTimeout(armed); armed = null; button.textContent = "Сбросить"; button.classList.remove("is-armed"); };
-    button.addEventListener("click", () => {
-      if (!armed) {
-        button.textContent = "Точно сбросить?";
-        button.classList.add("is-armed");
-        armed = setTimeout(disarm, 4000);
-        return;
-      }
-      disarm();
-      resetAll();
-    });
-    button.addEventListener("blur", () => { if (armed) disarm(); });
+    const dialog = document.getElementById("reset-dialog");
+    document.getElementById("reset-all").addEventListener("click", () => openDialog("reset-dialog"));
+    document.getElementById("reset-confirm").addEventListener("click", () => { dialog.close(); resetAll(); });
   }
 
   // With the frame on, the slide stays put and gestures place the map on it (scale + offset, exported as-is).
@@ -3243,7 +3233,7 @@
     });
     document.querySelectorAll("[data-open-shortcuts]").forEach(el => el.addEventListener("click", openShortcuts));
     document.querySelectorAll("dialog").forEach(dialog => {
-      dialog.querySelector("[data-close-dialog]")?.addEventListener("click", () => dialog.close());
+      dialog.querySelectorAll("[data-close-dialog]").forEach(button => button.addEventListener("click", () => dialog.close()));
       dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
     });
   }
