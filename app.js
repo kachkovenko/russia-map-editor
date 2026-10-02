@@ -257,7 +257,6 @@
     topCities = cities.slice().sort((a,b)=>b.population-a.population).slice(0,TOP_CITIES_COUNT);
     bindMapData();
     boundScope = state.mapScope;
-    syncDocumentName();
     document.querySelector(".library h1").textContent = state.mapScope === "world" ? "Страны и города" : "Регионы и города";
     document.getElementById("regions-tab-label").textContent = state.mapScope === "world" ? "Страны" : "Регионы";
     document.getElementById("search").placeholder = state.mapScope === "world" ? "Страна или город" : "Регион или город";
@@ -3191,9 +3190,6 @@
     return state.mapScope === "world" ? "Карта мира" : "Карта России";
   }
 
-  function syncDocumentName() {
-    document.getElementById("document-name").textContent = documentTitle();
-  }
 
   // Theme chips: a preview of slide, land and accent; the chip matching the current colours is shown as active.
   function bindThemes() {

@@ -61,17 +61,13 @@ button { color: inherit; }
 
 .app-shell { height: 100%; display: grid; grid-template-rows: 72px minmax(0, 1fr); }
 .topbar {
-  position: relative; z-index: 50; display: grid; grid-template-columns: 280px 1fr auto; align-items: center;
+  position: relative; z-index: 50; display: grid; grid-template-columns: 1fr auto; align-items: center;
   height: 72px; padding: 0 24px; background: var(--panel); border-bottom: 1px solid var(--line);
 }
 .brand { display: inline-flex; width: max-content; align-items: center; color: var(--ink); text-decoration: none; }
 .brand:hover { opacity: .75; }
 .brand svg { display: block; height: 24px; width: auto; }
 .brand .brand-symbol { display: none; }
-.document-title { display: flex; justify-self: start; align-items: center; gap: 14px; }
-.document-title__category { color: var(--muted); font-size: 12px; white-space: nowrap; }
-.document-title__separator { color: #a2a8ba; width: 14px !important; }
-.document-title__name { font-size: 13px; font-weight: 500; }
 .ui-icon { display: inline-block; flex: none; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; vertical-align: middle; }
 .top-actions { position: relative; display: flex; gap: 8px; align-items: center; }
 .button, .icon-button { border: 0; border-radius: var(--radius); background: transparent; cursor: pointer; }
@@ -441,9 +437,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px 
 
 @media (max-width: 1100px) {
   .workspace { grid-template-columns: 250px minmax(0, 1fr) 296px; }
-  .topbar { grid-template-columns: 230px 1fr auto; }
-  .document-title__category, .document-title__separator { display: none; }
-  .canvas-viewport { inset-inline: 24px; }
+    .canvas-viewport { inset-inline: 24px; }
   .stage-toolbar { left: 50%; right: auto; transform: translateX(-50%); }
   .selection-bar { left: 50%; right: auto; top: 68px; transform: translateX(-50%); }
   .status-bar { display: none !important; }
@@ -452,9 +446,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px 
 }
 
 @media (max-width: 1000px) {
-  .topbar { grid-template-columns: 1fr auto; }
-  .document-title { display: none; }
-  .mobile-panel-toggle { display: inline-grid; place-items: center; }
+    .mobile-panel-toggle { display: inline-grid; place-items: center; }
   .history-buttons { margin-right: 0; padding-right: 6px; }
   .onboarding { left: 12px; right: 12px; width: auto; bottom: 72px; }
   .workspace { display: block; }
