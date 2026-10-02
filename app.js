@@ -58,7 +58,7 @@
     markerColor: "#171717", markerShape: "circle", markerSize: 6, markerOutline: true, markerOutlineColor: "#ffffff",
     projection: "conic", rotation: 0, graticule: false, graticuleStep: 10, graticuleColor: "#171717", compass: false, frame: true, ratio: "16:9",
     background: "#ffffff", transparent: false, zoom: 1, mapX: 0, mapY: 0, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, lensLon: 91.06, lensLat: 65.36, projectCompanion: false, fontCompanion: false,
-    pngScale: 2, documentName: "",
+    pngScale: 2,
     countryOutline: true, countryOutlineColor: "#20344c", countryOutlineWidth: 1.1, cityLabelColor: "#171717"
   };
   const PROJECT_SETTING_KEYS = Object.freeze([
@@ -71,7 +71,7 @@
     "markerOutline", "markerOutlineColor",
     "projection", "rotation", "graticule", "graticuleStep", "graticuleColor", "compass", "frame", "ratio", "background", "transparent",
     "zoom", "mapX", "mapY", "viewZoom", "panX", "panY", "lensStrength", "lensLon", "lensLat",
-    "projectCompanion", "fontCompanion", "pngScale", "documentName",
+    "projectCompanion", "fontCompanion", "pngScale",
     "countryOutline", "countryOutlineColor", "countryOutlineWidth", "cityLabelColor"
   ]);
   const VIEW_KEYS = Object.freeze(["viewZoom", "panX", "panY"]);
@@ -1973,7 +1973,6 @@
       }
     });
     document.getElementById("project-file-input").addEventListener("change", importProjectFile);
-    bindDocumentName();
     bindThemes();
     bindShortcutsDialog();
     bindOnboarding();
@@ -2554,7 +2553,6 @@
     document.getElementById("route-width-value").textContent = `${state.routeWidth} px`;
     document.getElementById("route-bend-value").textContent = `${state.routeBend}%`;
     document.querySelectorAll("[data-ratio]").forEach(el => el.classList.toggle("is-active", el.dataset.ratio === state.ratio));
-    syncDocumentName();
     syncTabs();
     document.getElementById("search").value = state.query;
     updateSelectionCount();
@@ -2759,10 +2757,6 @@
       }
       else if (ENUM_SETTINGS[key]) valid = ENUM_SETTINGS[key].includes(value);
       else if (key === "routeHub") valid = value === "" || (typeof value === "string" && cityIds.has(value));
-      else if (key === "documentName") {
-        valid = typeof value === "string" && value.length <= 80;
-        if (valid) value = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
-      }
       if (!valid) {
         if (strict) throw new Error(`недопустимое значение настройки «${key}»`);
         return;
@@ -3195,32 +3189,12 @@
     showToast(message, false, { label: "Отменить", run: undo });
   }
 
-  // Document name: the title in the header, the SVG/PPTX title and the stem of exported files. Empty means «use the default».
   function documentTitle() {
-    return state.documentName || (state.mapScope === "world" ? "Карта мира" : "Карта России");
+    return state.mapScope === "world" ? "Карта мира" : "Карта России";
   }
 
   function syncDocumentName() {
-    const input = document.getElementById("document-name");
-    if (!input || document.activeElement === input) return;
-    input.value = documentTitle();
-    input.placeholder = state.mapScope === "world" ? "Карта мира" : "Карта России";
-    input.size = Math.max(6, input.value.length + 1);
-  }
-
-  function bindDocumentName() {
-    const input = document.getElementById("document-name");
-    input.addEventListener("input", () => {
-      input.size = Math.max(6, input.value.length + 1);
-      const name = input.value.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 80);
-      state.documentName = name === input.placeholder ? "" : name;
-      saveState(true);
-    });
-    input.addEventListener("keydown", event => {
-      if (event.key === "Enter") { event.preventDefault(); input.blur(); }
-      if (event.key === "Escape") { event.stopPropagation(); input.blur(); }
-    });
-    input.addEventListener("blur", syncDocumentName);
+    document.getElementById("document-name").textContent = documentTitle();
   }
 
   // Theme chips: a preview of slide, land and accent; the chip matching the current colours is shown as active.
@@ -3485,10 +3459,7 @@
   function exportStem() {
     const now = new Date();
     const pad = n => String(n).padStart(2, "0");
-    // A renamed map exports under its name (characters that file systems reject become dashes).
-    const named = state.documentName.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").replace(/^[-. ]+|[-. ]+$/g, "").slice(0, 60);
-    const base = named || (state.mapScope === "world" ? "karta-mira" : "karta-rossii");
-    return `${base}-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+    return `${state.mapScope === "world" ? "karta-mira" : "karta-rossii"}-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
   }
   function exportFilename(extension) { return `${exportStem()}.${extension}`; }
   function downloadBlob(blob, filename) {
