@@ -56,4 +56,15 @@ if (!outline.coordinates.length) throw new Error("Merged country outline is empt
 const wrapper = await readFile(`${ROOT}/data/regions.topojson.js`, "utf8");
 if (wrapper !== `window.RU_TOPO=${JSON.stringify(topology)};\n`) throw new Error("JavaScript wrapper is out of sync");
 
+// The close-up set must describe the same regions with at least as many points.
+const detailWrapper = await readFile(`${ROOT}/data/regions-detail.topojson.js`, "utf8");
+const detailMatch = detailWrapper.match(/^window\.RU_TOPO_DETAIL=(.*);\n$/s);
+if (!detailMatch) throw new Error("Close-up wrapper is malformed");
+const detail = JSON.parse(detailMatch[1]);
+const detailIds = feature(detail, detail.objects.ru89).features.map(region => region.properties.id);
+if (detailIds.join() !== ids.join()) throw new Error("Close-up set lists different regions");
+const points = t => t.arcs.reduce((sum, arc) => sum + arc.length, 0);
+if (points(detail) < points(topology)) throw new Error("Close-up set has fewer points than the overview");
+
 console.log(`Verified ${collection.features.length} regions, ${topology.arcs.length} arcs, and a merged ${outline.type} outline.`);
+console.log(`Close-up set: same regions, ${points(detail)} points against ${points(topology)}.`);

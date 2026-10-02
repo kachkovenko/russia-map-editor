@@ -90,14 +90,21 @@ button { color: inherit; }
 .icon-button:hover { color: var(--ink); background: var(--hover); }
 .icon-button:disabled { color: #c3c9d6; cursor: default; background: transparent; }
 .help-button { display: grid; place-items: center; font-size: 15px; font-weight: 600; }
+.help-button[aria-expanded="true"] { color: var(--accent); background: var(--accent-soft); }
 .history-buttons { display: flex; gap: 2px; margin-right: 4px; padding-right: 12px; border-right: 1px solid var(--line); }
 .history-button { display: grid; place-items: center; width: 36px; height: 36px; }
 .history-button svg { display: block; width: 16px; height: 16px; }
 .history-button--redo svg { transform: scaleX(-1); }
 .export-menu { position: relative; }
 .export-popover { position: absolute; right: 0; top: calc(100% + 8px); width: 352px; max-width: calc(100vw - 20px); padding: 6px; border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-pop); }
-.export-popover > button { display: grid; grid-template-columns: 64px 1fr auto; align-items: center; gap: 0 8px; width: 100%; padding: 10px 10px; text-align: left; border: 0; border-radius: var(--radius-sm); background: transparent; cursor: pointer; }
-.export-popover > button:hover { background: var(--hover); }
+.export-popover > button, .export-popover > a { color: inherit; text-decoration: none; }
+.export-popover > button, .export-popover > a { display: grid; grid-template-columns: 64px 1fr auto; align-items: center; gap: 0 8px; width: 100%; padding: 10px 10px; text-align: left; border: 0; border-radius: var(--radius-sm); background: transparent; cursor: pointer; }
+.export-popover > button:hover, .export-popover > a:hover { background: var(--hover); }
+.help-menu { position: relative; }
+.help-popover { width: 300px; }
+.help-popover > button, .help-popover > a { grid-template-columns: 1fr auto; gap: 2px 8px; }
+.help-popover small { grid-column: 1; }
+.help-popover .shortcut { grid-column: 2; grid-row: 1 / span 2; }
 .export-popover .shortcut { padding: 1px 5px; font-size: 11px; }
 .export-popover__scale { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px 8px 82px; color: var(--muted); font-size: 12px; }
 .export-popover__scale .segmented--inline button { padding: 4px 10px; font-size: 12px; }
@@ -229,18 +236,16 @@ kbd { padding: 2px 6px; color: var(--muted); border: 1px solid var(--line); bord
    readout, not a control, so it sits flat on the board, and the coordinate part only exists while the cursor is over
    the map. */
 .status-bar { position: absolute; z-index: 5; left: 20px; bottom: 28px; display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 8px; border-radius: var(--radius-sm); background: var(--canvas); color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
-/* Terms link in the opposite corner, set like the status strip: the service and its maps are free, the code is not. */
-.stage-license { position: absolute; z-index: 5; right: 20px; bottom: 28px; display: inline-flex; align-items: center; height: 30px; padding: 0 8px; border-radius: var(--radius-sm); color: var(--muted); background: var(--canvas); font-size: 12px; text-decoration: none; }
-.stage-license:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
 /* Regions picked on the map: screen-only outline above the map, plus a floating bar to recolour or unmark them. */
 .active-outline { pointer-events: none; }
 .active-outline path { fill: none; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .active-outline__halo { stroke: #fff; stroke-width: 4; }
 .active-outline__line { stroke: var(--accent); stroke-width: 1.5; }
-.selection-bar { position: absolute; z-index: 6; left: 50%; bottom: 80px; display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 14px; max-width: calc(100% - 24px); transform: translateX(-50%); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-pop); font-size: 12.5px; }
+/* Sits in the toolbar row, left of the projection switch, so a pick on the map is answered where the eye already is. */
+.selection-bar { position: absolute; z-index: 6; left: 24px; top: 16px; display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 14px; max-width: calc(100% - 24px); border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-pop); font-size: 12.5px; }
 .selection-bar__count { color: var(--text-soft); white-space: nowrap; }
-.selection-bar .swatch { min-height: 32px; padding: 0 8px; border-right: 1px solid var(--line-soft); }
-.selection-bar button { height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; font-size: 12px; font-weight: 500; cursor: pointer; }
+.selection-bar .swatch { min-height: 31px; padding: 0 8px; border-right: 1px solid var(--line-soft); }
+.selection-bar button { height: 31px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; font-size: 12px; font-weight: 500; cursor: pointer; }
 .selection-bar button:hover { background: var(--hover); }
 /* The whole map as one object: bounding box with corner (resize) and top (rotate) handles, screen-only. Handles are
    drawn in screen pixels — their groups get scale(1/screenScale) from JS. */
@@ -269,13 +274,13 @@ kbd { padding: 2px 6px; color: var(--muted); border: 1px solid var(--line); bord
 .tooltip small { margin-top: 2px; color: #aeb7cc; font-size: 11.5px; }
 .toast { position: fixed; z-index: 100; left: 50%; bottom: 76px; width: max-content; max-width: min(92vw, 440px); padding: 11px 16px; border-radius: var(--radius); color: #fff; background: var(--ink); box-shadow: 0 10px 28px -10px rgba(28,39,64,.4); transform: translateX(-50%); font-size: 13px; text-align: center; }
 .toast:not([hidden]) { display: flex; align-items: center; gap: 14px; }
-/* Keep the toast clear of the floating selection bar. */
-.stage:has(.selection-bar:not([hidden])) .toast { bottom: 136px; }
+
 .toast__action { flex: none; margin: -6px -8px -6px 0; padding: 6px 10px; border: 0; border-radius: var(--radius-sm); color: #b9c8ff; background: rgba(255,255,255,.08); font-size: 13px; font-weight: 600; cursor: pointer; }
 .toast__action:hover { color: #fff; background: rgba(255,255,255,.16); }
 /* First-run card: the three steps of the editor, dismissed once for good. */
 .onboarding { position: absolute; z-index: 7; left: 20px; bottom: 76px; width: 300px; padding: 16px 16px 14px; border-radius: var(--radius-lg); background: var(--panel); box-shadow: var(--shadow-pop); color: var(--text-soft); font-size: 12.5px; line-height: 1.45; }
-.onboarding__title { margin: 0 0 8px; color: var(--ink); font-size: 13px; font-weight: 600; }
+.onboarding__close { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; font-size: 18px; }
+.onboarding__title { margin: 0 28px 8px 0; color: var(--ink); font-size: 13px; font-weight: 600; }
 .onboarding ol { margin: 0; padding-left: 18px; }
 .onboarding li + li { margin-top: 4px; }
 .onboarding b { color: var(--ink); font-weight: 600; }
@@ -292,6 +297,10 @@ kbd { padding: 2px 6px; color: var(--muted); border: 1px solid var(--line); bord
 .shortcuts::backdrop { background: rgba(28,39,64,.28); }
 .shortcuts__head { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px 22px; }
 .shortcuts__head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.support { width: min(92vw, 400px); }
+.support__body { padding: 4px 22px 22px; color: var(--text-soft); font-size: 13px; line-height: 1.5; }
+.support__body p { margin: 0 0 16px; }
+.support__link { width: 100%; text-decoration: none; }
 .shortcuts__list { margin: 0; padding: 0 22px 20px; }
 .shortcuts__list div { display: grid; grid-template-columns: 150px 1fr; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line-soft); font-size: 12.5px; }
 .shortcuts__list dt { color: var(--muted); }
@@ -425,12 +434,18 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px 
 .projection-help { min-height: 23px; }
 .control-section:last-of-type { border-bottom: 1px solid var(--line); }
 
+/* Too narrow for both in one row: the pick bar drops under the projection switch. */
+@media (max-width: 1320px) {
+  .selection-bar { left: auto; right: 24px; top: 68px; }
+}
+
 @media (max-width: 1100px) {
   .workspace { grid-template-columns: 250px minmax(0, 1fr) 296px; }
   .topbar { grid-template-columns: 230px 1fr auto; }
   .document-title__category, .document-title__separator { display: none; }
   .canvas-viewport { inset-inline: 24px; }
   .stage-toolbar { left: 50%; right: auto; transform: translateX(-50%); }
+  .selection-bar { left: 50%; right: auto; top: 68px; transform: translateX(-50%); }
   .status-bar { display: none !important; }
   .library { padding-inline: 16px; }
   .inspector .panel-head, .section-toggle, .section-body__inner { padding-inline: 16px; }
@@ -440,7 +455,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px 
   .topbar { grid-template-columns: 1fr auto; }
   .document-title { display: none; }
   .mobile-panel-toggle { display: inline-grid; place-items: center; }
-  .help-button { display: none; }
   .history-buttons { margin-right: 0; padding-right: 6px; }
   .onboarding { left: 12px; right: 12px; width: auto; bottom: 72px; }
   .workspace { display: block; }
@@ -466,9 +480,11 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px 
   .brand .brand-full { display: none; }
   .brand .brand-symbol { display: block; }
   .stage-toolbar { top: 10px; }
+  .selection-bar { top: 60px; padding-left: 10px; gap: 6px; }
+  .help-popover { position: fixed; left: 10px; right: 10px; top: 60px; width: auto; }
+  .selection-bar .hex-input { width: 58px; }
   .view-switch button { padding: 8px 9px; gap: 5px; }
   .history-buttons { gap: 0; padding-right: 2px; border-right: 0; }
   .top-actions { gap: 4px; }
   .canvas-viewport { inset: 72px 16px 76px; }
-  .stage-license { right: 12px; bottom: 72px; height: 24px; }
-}
+  }

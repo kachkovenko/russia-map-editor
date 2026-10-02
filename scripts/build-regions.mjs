@@ -166,12 +166,21 @@ output = presimplify(output);
 // intact, which keeps small federal cities usable. 0.08 gave 340 KB and visibly straight coastlines at 4× zoom.
 const detailFlag = process.argv.indexOf("--detail");
 const DETAIL = detailFlag >= 0 ? Number(process.argv[detailFlag + 1]) : 0.2;
+// The close-up set: the same topology with `--fine` of the points (all by default). The editor loads it only when the
+// map is enlarged past 2× — at that scale (and on Mercator's stretched north) the overview set shows straight runs,
+// while at 1× the full source detail would only add noise.
+const fineFlag = process.argv.indexOf("--fine");
+const FINE = fineFlag >= 0 ? Number(process.argv[fineFlag + 1]) : 1;
+const fine = simplify(output, quantile(output, FINE));
 output = simplify(output, quantile(output, DETAIL));
-console.log(`Detail: kept ${Math.round(DETAIL * 100)}% of intermediate points.`);
+console.log(`Detail: kept ${Math.round(DETAIL * 100)}% of intermediate points (close-up set: ${Math.round(FINE * 100)}%).`);
 
 const json = JSON.stringify(output);
 await writeFile(join(ROOT, "data/regions.topojson"), `${json}\n`);
 await writeFile(join(ROOT, "data/regions.topojson.js"), `window.RU_TOPO=${json};\n`);
+const fineJson = JSON.stringify(fine);
+await writeFile(join(ROOT, "data/regions-detail.topojson.js"), `window.RU_TOPO_DETAIL=${fineJson};\n`);
+console.log(`Close-up set: ${Buffer.byteLength(fineJson)} bytes.`);
 await rm(workingDirectory, { recursive: true, force: true });
 
 console.log(`Built ${features.length} regions from GeoJSON Atlas commit ${SOURCE_COMMIT}.`);

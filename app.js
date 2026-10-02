@@ -26,6 +26,8 @@
   };
   // Region lookup for the mosaic is rasterised; sides above this many pixels are scaled down.
   const MAX_SAMPLE_SIDE = 4096;
+  // Pixels searched around an ambiguous sample, by distance: ring 1 (edges, then corners), then ring 2.
+  const NEIGHBOURS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1], [2, 0], [-2, 0], [0, 2], [0, -2]];
   const PROJECTION_HELP = Object.freeze({
     conic: "Равновеликая проекция: площади регионов сравниваются корректнее.",
     mercator: "Привычный вид веб-карт. Северные территории визуально увеличены.",
@@ -56,7 +58,8 @@
     markerColor: "#171717", markerShape: "circle", markerSize: 6, markerOutline: true, markerOutlineColor: "#ffffff",
     projection: "conic", rotation: 0, graticule: false, graticuleStep: 10, graticuleColor: "#171717", compass: false, frame: true, ratio: "16:9",
     background: "#ffffff", transparent: false, zoom: 1, mapX: 0, mapY: 0, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, lensLon: 91.06, lensLat: 65.36, projectCompanion: false, fontCompanion: false,
-    pngScale: 2, documentName: ""
+    pngScale: 2, documentName: "",
+    countryOutline: true, countryOutlineColor: "#20344c", countryOutlineWidth: 1.1, cityLabelColor: "#171717"
   };
   const PROJECT_SETTING_KEYS = Object.freeze([
     "mapScope", "globeSurface", "oceanColor", "globeLight", "globeGloss", "lightAngle",
@@ -68,17 +71,18 @@
     "markerOutline", "markerOutlineColor",
     "projection", "rotation", "graticule", "graticuleStep", "graticuleColor", "compass", "frame", "ratio", "background", "transparent",
     "zoom", "mapX", "mapY", "viewZoom", "panX", "panY", "lensStrength", "lensLon", "lensLat",
-    "projectCompanion", "fontCompanion", "pngScale", "documentName"
+    "projectCompanion", "fontCompanion", "pngScale", "documentName",
+    "countryOutline", "countryOutlineColor", "countryOutlineWidth", "cityLabelColor"
   ]);
   const VIEW_KEYS = Object.freeze(["viewZoom", "panX", "panY"]);
-  const BOOLEAN_SETTINGS = new Set(["globeSurface", "mosaicBorders", "gradient", "borders", "regionLabels", "regionLabelsCaps", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "graticule", "compass", "frame", "transparent", "projectCompanion", "fontCompanion"]);
-  const COLOR_SETTINGS = new Set(["oceanColor", "fillStart", "fillEnd", "selectedColor", "borderColor", "leaderColor", "labelHaloColor", "markerColor", "markerOutlineColor", "graticuleColor", "background"]);
+  const BOOLEAN_SETTINGS = new Set(["globeSurface", "mosaicBorders", "gradient", "borders", "regionLabels", "regionLabelsCaps", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "graticule", "compass", "frame", "transparent", "projectCompanion", "fontCompanion", "countryOutline"]);
+  const COLOR_SETTINGS = new Set(["oceanColor", "fillStart", "fillEnd", "selectedColor", "borderColor", "leaderColor", "labelHaloColor", "markerColor", "markerOutlineColor", "graticuleColor", "background", "countryOutlineColor", "cityLabelColor"]);
   const NUMBER_RANGES = Object.freeze({
     globeLight: [0, 100], globeGloss: [0, 100], lightAngle: [0, 360],
     routeWidth: [.5, 8], routeBend: [0, 70], routeSeed: [1, 1000000],
     dotPitch: [6, 32], dotSize: [30, 100],
     angle: [0, 360], gradientStart: [0, 100], gradientEnd: [0, 100], opacity: [.1, 1], borderWidth: [.2, 4], markerSize: [3, 12],
-    regionFontSize: [8, 28], cityFontSize: [8, 28], labelHaloWidth: [.5, 4],
+    regionFontSize: [8, 28], cityFontSize: [8, 28], labelHaloWidth: [.5, 4], countryOutlineWidth: [.2, 4],
     rotation: [-45, 45], zoom: [.3, 4], mapX: [-4000, 4000], mapY: [-4000, 4000], viewZoom: [.25, 4], panX: [-10000, 10000], panY: [-10000, 10000],
     lensStrength: [0, 100], lensLon: [-180, 180], lensLat: [-85, 85]
   });
@@ -95,11 +99,11 @@
   const CAPS_TRACKING = .14;
   // Ready-made colour themes: one click sets every shared colour; per-region colours stay as they are.
   const THEMES = Object.freeze([
-    { id: "calm", name: "Сдержанная", colors: { gradient: true, fillStart: "#3b5f8a", fillEnd: "#b9cad8", selectedColor: "#ff5f46", borderColor: "#ffffff", background: "#ffffff", markerColor: "#171717", markerOutlineColor: "#ffffff", labelHaloColor: "#ffffff", leaderColor: "#171717", labelBackground: "#ffffff", graticuleColor: "#171717", routeColor: "#4263eb", oceanColor: "#e5e7eb" } },
-    { id: "contrast", name: "Контрастная", colors: { gradient: false, fillStart: "#d5dbe6", fillEnd: "#d5dbe6", selectedColor: "#e63946", borderColor: "#ffffff", background: "#ffffff", markerColor: "#111827", markerOutlineColor: "#ffffff", labelHaloColor: "#ffffff", leaderColor: "#111827", labelBackground: "#ffffff", graticuleColor: "#94a3b8", routeColor: "#e63946", oceanColor: "#eef2f7" } },
-    { id: "mono", name: "Монохром", colors: { gradient: false, fillStart: "#d4d4d4", fillEnd: "#d4d4d4", selectedColor: "#262626", borderColor: "#ffffff", background: "#ffffff", markerColor: "#171717", markerOutlineColor: "#ffffff", labelHaloColor: "#ffffff", leaderColor: "#404040", labelBackground: "#ffffff", graticuleColor: "#a3a3a3", routeColor: "#262626", oceanColor: "#f2f2f2" } },
-    { id: "dark", name: "Тёмная", colors: { gradient: true, fillStart: "#3d4f6b", fillEnd: "#6b7f9e", selectedColor: "#f5a524", borderColor: "#131a2a", background: "#131a2a", markerColor: "#f8fafc", markerOutlineColor: "#131a2a", labelHaloColor: "#131a2a", leaderColor: "#cbd5e1", labelBackground: "#1f2a40", graticuleColor: "#56657f", routeColor: "#38bdf8", oceanColor: "#1c2638" } },
-    { id: "warm", name: "Тёплая", colors: { gradient: true, fillStart: "#8a5a3b", fillEnd: "#e8d3b4", selectedColor: "#2a6f97", borderColor: "#fffaf3", background: "#fffaf3", markerColor: "#3d2b1f", markerOutlineColor: "#fffaf3", labelHaloColor: "#fffaf3", leaderColor: "#3d2b1f", labelBackground: "#fffaf3", graticuleColor: "#b08968", routeColor: "#2a6f97", oceanColor: "#f3e9dc" } }
+    { id: "calm", name: "Сдержанная", colors: { gradient: true, fillStart: "#3b5f8a", fillEnd: "#b9cad8", selectedColor: "#ff5f46", borderColor: "#ffffff", background: "#ffffff", markerColor: "#171717", markerOutlineColor: "#ffffff", labelHaloColor: "#ffffff", leaderColor: "#171717", labelBackground: "#ffffff", graticuleColor: "#171717", routeColor: "#4263eb", oceanColor: "#e5e7eb", countryOutlineColor: "#20344c", cityLabelColor: "#171717" } },
+    { id: "contrast", name: "Контрастная", colors: { gradient: false, fillStart: "#d5dbe6", fillEnd: "#d5dbe6", selectedColor: "#e63946", borderColor: "#ffffff", background: "#ffffff", markerColor: "#111827", markerOutlineColor: "#ffffff", labelHaloColor: "#ffffff", leaderColor: "#111827", labelBackground: "#ffffff", graticuleColor: "#94a3b8", routeColor: "#e63946", oceanColor: "#eef2f7", countryOutlineColor: "#111827", cityLabelColor: "#111827" } },
+    { id: "mono", name: "Монохром", colors: { gradient: false, fillStart: "#d4d4d4", fillEnd: "#d4d4d4", selectedColor: "#262626", borderColor: "#ffffff", background: "#ffffff", markerColor: "#171717", markerOutlineColor: "#ffffff", labelHaloColor: "#ffffff", leaderColor: "#404040", labelBackground: "#ffffff", graticuleColor: "#a3a3a3", routeColor: "#262626", oceanColor: "#f2f2f2", countryOutlineColor: "#262626", cityLabelColor: "#171717" } },
+    { id: "dark", name: "Тёмная", colors: { gradient: true, fillStart: "#3d4f6b", fillEnd: "#6b7f9e", selectedColor: "#f5a524", borderColor: "#131a2a", background: "#131a2a", markerColor: "#f8fafc", markerOutlineColor: "#131a2a", labelHaloColor: "#131a2a", leaderColor: "#cbd5e1", labelBackground: "#1f2a40", graticuleColor: "#56657f", routeColor: "#38bdf8", oceanColor: "#1c2638", countryOutlineColor: "#8fa3c4", cityLabelColor: "#f8fafc" } },
+    { id: "warm", name: "Тёплая", colors: { gradient: true, fillStart: "#8a5a3b", fillEnd: "#e8d3b4", selectedColor: "#2a6f97", borderColor: "#fffaf3", background: "#fffaf3", markerColor: "#3d2b1f", markerOutlineColor: "#fffaf3", labelHaloColor: "#fffaf3", leaderColor: "#3d2b1f", labelBackground: "#fffaf3", graticuleColor: "#b08968", routeColor: "#2a6f97", oceanColor: "#f3e9dc", countryOutlineColor: "#4a2f1f", cityLabelColor: "#3d2b1f" } }
   ]);
   // Shortcut labels are written the Mac way in the markup and translated for Windows and Linux.
   const IS_MAC = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
@@ -151,6 +155,10 @@
   const recentColors = [];
   // The one region that is the map's tab stop.
   let focusRegionId = null;
+  // Close-up geometry for Russia (data/regions-detail.topojson.js, all source points): fetched on first need and used
+  // while the map is enlarged past 2× — with a little hysteresis so a zoom hovering at the threshold does not flicker.
+  const DETAIL_ON = 2, DETAIL_OFF = 1.7;
+  const detail = { status: "idle", fine: null, fineOutline: null, coarseOutline: null, inUse: false };
   let panGesture = null;
   let pinchGesture = null;
   let labelDrag = null;
@@ -209,6 +217,8 @@
     cities = makeCities(features);
     topCities = cities.slice().sort((a, b) => b.population - a.population).slice(0, TOP_CITIES_COUNT);
     datasets.russia = { features, cities, outline };
+    features.forEach(d => { d.coarseGeometry = d.geometry; });
+    detail.coarseOutline = outline;
     const worldTopo = window.WORLD_TOPO;
     if (worldTopo) {
       const worldFeatures = topojson.feature(worldTopo, worldTopo.objects.countries).features.sort((a,b) => a.properties.name.localeCompare(b.properties.name,"ru"));
@@ -252,7 +262,8 @@
     document.getElementById("regions-tab-label").textContent = state.mapScope === "world" ? "Страны" : "Регионы";
     document.getElementById("search").placeholder = state.mapScope === "world" ? "Страна или город" : "Регион или город";
     document.querySelectorAll('[data-projection="conic"] span, [data-quick-projection="conic"] span').forEach(el => { el.textContent = state.mapScope === "world" ? "Мир" : "Атласная"; });
-    document.querySelector('#borders-enabled').previousElementSibling.textContent = state.mapScope === "world" ? "Границы стран" : "Границы регионов";
+    document.getElementById("borders-label").textContent = state.mapScope === "world" ? "Границы стран" : "Границы регионов";
+    document.getElementById("country-outline-label").textContent = state.mapScope === "world" ? "Контур суши" : "Граница страны";
     document.querySelector('#region-labels-enabled').previousElementSibling.textContent = state.mapScope === "world" ? "Названия стран" : "Названия регионов";
     state.activeRegions.clear(); state.mapSelected = false;
   }
@@ -532,6 +543,7 @@
   // Full render: recompute the projection and every geometry, then restyle.
   function render() {
     if (!features.length) return;
+    syncGeometryDetail();
     makeProjection();
     path = d3.geoPath(projection).digits(1);
     svg.attr("viewBox", `0 0 ${width} ${height}`);
@@ -593,9 +605,9 @@
     }).each(function (d) { d3.select(this).selectAll("path").attr("d", path(d)); });
 
     d3.select("#country-outline")
-      .attr("stroke", state.mapScope === "world" ? state.borderColor : darken(state.fillStart, .45))
-      .attr("stroke-width", state.mapScope === "world" ? state.borderWidth : Math.max(1.1, state.borderWidth * 1.35))
-      .attr("display", borders && !mosaic ? null : "none");
+      .attr("stroke", state.countryOutlineColor)
+      .attr("stroke-width", state.countryOutlineWidth)
+      .attr("display", state.countryOutline && !mosaic ? null : "none");
     svg.classed("is-mosaic", mosaic);
     prepareDots();
 
@@ -638,7 +650,7 @@
         .attr("x", d.label.dx).attr("y", d.label.dy)
         .attr("text-anchor", d.label.anchor)
         .attr("font-size", state.cityFontSize)
-        .attr("fill", state.labelStyle === "pill" ? "#29303c" : state.markerColor)
+        .attr("fill", state.cityLabelColor)
         .attr("stroke", haloStroke)
         .attr("stroke-width", halo)
         .classed("is-manual", !!state.cityLabelOffsets[d.id]);
@@ -852,7 +864,10 @@
     const decode = (x, y) => {
       if (x < 0 || y < 0 || x >= w || y >= h) return -1;
       const o = (y * w + x) * 4;
-      if (data[o + 3] !== 255) return -1;
+      // Where two regions meet, each fill covers the edge pixel only partly, so it stays semi-transparent even inside
+      // the country. Mostly covered pixels are resolved from a neighbour; faint ones are the coast.
+      if (data[o + 3] < 128) return -1;
+      if (data[o + 3] !== 255) return -2;
       const code = data[o] + (data[o + 1] << 8);
       return code > 0 && code <= features.length && data[o + 2] === (code * 13 + 5) % 256 ? code - 1 : -2;
     };
@@ -860,7 +875,7 @@
       const x = Math.floor((sx - box.x) * scale), y = Math.floor((sy - box.y) * scale);
       let k = decode(x, y);
       if (k !== -2) return k;
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (const [dx, dy] of NEIGHBOURS) {
         k = decode(x + dx, y + dy);
         if (k >= 0) return k;
       }
@@ -884,7 +899,8 @@
   }
 
   // Region borders are remembered per style: the mosaic starts without them, the atlas with them.
-  function bordersOn() { return state.mapStyle === "mosaic" ? state.mosaicBorders : state.borders; }
+  // The mosaic draws regions as dots, so region borders (and the country outline) belong to the classic style only.
+  function bordersOn() { return state.mapStyle !== "mosaic" && state.borders; }
 
   // The mosaic samples already projected geometry, including the visible globe hemisphere.
   function enforceStyleRules() {
@@ -1661,7 +1677,8 @@
     const clear = document.getElementById("clear-selection");
     clear.hidden = !count;
     clear.textContent = `Снять все отметки (${count})`;
-    if (count) dismissOnboarding();
+    // The first-run card goes away with the first mark; once reopened from «?» it waits to be closed.
+    if (count && document.getElementById("onboarding").dataset.firstRun) dismissOnboarding();
   }
 
   function revealListItem(id) {
@@ -1858,10 +1875,14 @@
     bindRange("fill-opacity", "opacity", "fill-opacity-value", v => `${v}%`, v => Number(v) / 100);
     bindColor("selected-color", "selectedColor");
     document.getElementById("borders-enabled").addEventListener("change", event => {
-      state[state.mapStyle === "mosaic" ? "mosaicBorders" : "borders"] = event.target.checked;
+      state.borders = event.target.checked;
       updateLabelModeControls(); restyle(); saveState();
     });
     bindColor("border-color", "borderColor");
+    bindCheck("country-outline-enabled", "countryOutline", updateLabelModeControls);
+    bindColor("country-outline-color", "countryOutlineColor");
+    bindRange("country-outline-width", "countryOutlineWidth", "country-outline-width-value", v => `${String(v).replace(".", ",")} px`, Number);
+    bindColor("city-label-color", "cityLabelColor");
     bindRange("border-width", "borderWidth", "border-width-value", v => `${String(v).replace(".", ",")} px`, Number);
     bindCheck("region-labels-enabled", "regionLabels", updateLabelModeControls);
     document.querySelectorAll("[data-labels-mode]").forEach(button => button.addEventListener("click", () => {
@@ -1960,7 +1981,7 @@
     bindPalette();
     bindPressedStates();
     applyShortcutLabels();
-    document.addEventListener("click", event => { if (!event.target.closest(".export-menu")) closeExportMenu(); });
+    document.addEventListener("click", event => { if (!event.target.closest(".export-menu, .help-menu")) closeExportMenu(); });
 
     document.getElementById("open-library").addEventListener("click", () => document.getElementById("library-panel").classList.add("is-open"));
     document.getElementById("open-inspector").addEventListener("click", () => document.getElementById("inspector-panel").classList.add("is-open"));
@@ -2202,6 +2223,43 @@
     render(); saveState();
   }
 
+  // How much the map is enlarged on screen; Mercator's north is stretched further, so it asks for detail sooner.
+  function mapMagnification() {
+    return (state.frame ? state.zoom : state.zoom * state.viewZoom) * (state.projection === "mercator" ? 1.5 : 1);
+  }
+
+  // Swaps the Russia geometry between the overview and close-up sets; true when the set in use changed.
+  function syncGeometryDetail() {
+    const m = mapMagnification();
+    const want = state.mapScope === "russia" && (detail.inUse ? m >= DETAIL_OFF : m >= DETAIL_ON);
+    if (want && !detail.fine) { loadFineGeometry(); return false; }
+    if (want === detail.inUse) return false;
+    detail.inUse = want;
+    const set = datasets.russia;
+    set.features.forEach(d => { d.geometry = want ? detail.fine.get(d.properties.id) || d.coarseGeometry : d.coarseGeometry; });
+    set.outline = want ? detail.fineOutline : detail.coarseOutline;
+    if (state.mapScope === "russia") outline = set.outline;
+    return true;
+  }
+
+  function loadFineGeometry() {
+    if (detail.status !== "idle") return;
+    detail.status = "loading";
+    const script = document.createElement("script");
+    script.src = "data/regions-detail.topojson.js";
+    script.onload = () => {
+      const topo = window.RU_TOPO_DETAIL;
+      delete window.RU_TOPO_DETAIL;
+      if (!topo?.objects?.ru89) { detail.status = "failed"; return; }
+      detail.fine = new Map(topojson.feature(topo, topo.objects.ru89).features.map(d => [d.properties.id, d.geometry]));
+      detail.fineOutline = topojson.merge(topo, topo.objects.ru89.geometries);
+      detail.status = "ready";
+      scheduleRender();
+    };
+    script.onerror = () => { detail.status = "failed"; script.remove(); };
+    document.head.append(script);
+  }
+
   function zoomCanvas(nextZoom, anchorX, anchorY) {
     const oldZoom = state.viewZoom;
     const newZoom = clamp(nextZoom, NUMBER_RANGES.viewZoom[0], NUMBER_RANGES.viewZoom[1]);
@@ -2214,6 +2272,7 @@
     state.panY = viewportY - centerY - (viewportY - centerY - state.panY) * factor;
     state.viewZoom = newZoom;
     applyCanvasTransform();
+    if (syncGeometryDetail()) scheduleRender();
     persist();
   }
 
@@ -2413,6 +2472,9 @@
     document.getElementById("label-pill-options").hidden = state.labelStyle !== "pill";
     document.getElementById("borders-enabled").checked = bordersOn();
     document.getElementById("border-controls").hidden = !bordersOn();
+    document.getElementById("country-outline-options").hidden = !state.countryOutline;
+    // Borders and outline do not apply to the dotted map: the whole section steps aside.
+    document.querySelector('.control-section[data-section="borders"]').hidden = state.mapStyle === "mosaic";
     document.getElementById("region-label-options").hidden = !state.regionLabels;
     document.getElementById("city-label-options").hidden = !state.cityLabels;
     document.getElementById("halo-options").hidden = !state.labelHalo;
@@ -2454,7 +2516,8 @@
       "region-labels-enabled": state.regionLabels, "region-labels-caps": state.regionLabelsCaps, "city-labels-enabled": state.cityLabels, "marker-color": state.markerColor,
       "region-font-size": state.regionFontSize, "city-font-size": state.cityFontSize, "leader-lines": state.leaderLines,
       "label-halo": state.labelHalo, "label-halo-width": state.labelHaloWidth, "label-halo-color": state.labelHaloColor,
-      "leader-color": state.leaderColor, "marker-outline": state.markerOutline, "marker-outline-color": state.markerOutlineColor,
+      "leader-color": state.leaderColor, "country-outline-enabled": state.countryOutline, "country-outline-color": state.countryOutlineColor,
+      "country-outline-width": state.countryOutlineWidth, "city-label-color": state.cityLabelColor, "marker-outline": state.markerOutline, "marker-outline-color": state.markerOutlineColor,
       "marker-size": state.markerSize, "rotation": state.rotation, "lens-strength": state.lensStrength, "frame-enabled": state.frame,
       "background-color": state.background, "transparent-background": state.transparent,
       "graticule-enabled": state.graticule, "graticule-color": state.graticuleColor, "compass-enabled": state.compass,
@@ -2479,6 +2542,7 @@
     document.getElementById("city-font-size-value").textContent = `${state.cityFontSize} px`;
     document.getElementById("label-halo-width-value").textContent = `${String(state.labelHaloWidth).replace(".", ",")} px`;
     document.getElementById("border-width-value").textContent = `${String(state.borderWidth).replace(".", ",")} px`;
+    document.getElementById("country-outline-width-value").textContent = `${String(state.countryOutlineWidth).replace(".", ",")} px`;
     document.getElementById("rotation-value").textContent = `${Math.round(state.rotation)}°`;
     document.getElementById("lens-strength-value").textContent = `${Math.round(state.lensStrength)}%`;
     updateFontCompanionOption();
@@ -2709,6 +2773,10 @@
       const migrated = MapProject.migratedGlobeGloss(input, defaults.globeGloss);
       if (typeof migrated === "number" && Number.isFinite(migrated)) clean.globeGloss = clamp(migrated, 0, 100);
     }
+    // Before these settings existed, city labels took the marker colour and the country outline came and went with
+    // the region borders.
+    if (!Object.prototype.hasOwnProperty.call(input, "cityLabelColor")) clean.cityLabelColor = clean.labelStyle === "pill" ? "#29303c" : clean.markerColor;
+    if (!Object.prototype.hasOwnProperty.call(input, "countryOutline") && input.borders === false) clean.countryOutline = false;
     if (clean.gradientStart > clean.gradientEnd) {
       if (strict) throw new Error("начальная точка градиента не может быть правее конечной");
       clean.gradientStart = defaults.gradientStart;
@@ -3066,7 +3134,7 @@
     if (state.cityLabels) {
       cities.forEach(city => {
         if (!state.selectedCities.has(city.id) || !city.point || !city.label) return;
-        place(city.name, city.point[0] + city.label.dx, city.point[1] + city.label.dy, city.label.anchor, state.cityFontSize, state.labelStyle === "pill" ? "#29303c" : state.markerColor);
+        place(city.name, city.point[0] + city.label.dx, city.point[1] + city.label.dy, city.label.anchor, state.cityFontSize, state.cityLabelColor);
       });
     }
   }
@@ -3180,26 +3248,56 @@
     });
   }
 
+  // «?» in the header: the first-run guide (to bring it back), the shortcut list, support and the licence.
   function bindShortcutsDialog() {
-    const dialog = document.getElementById("shortcuts-dialog");
-    document.getElementById("open-shortcuts").addEventListener("click", openShortcuts);
-    document.querySelectorAll("[data-open-shortcuts]").forEach(button => button.addEventListener("click", openShortcuts));
-    dialog.querySelector("[data-close-dialog]").addEventListener("click", () => dialog.close());
-    dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
+    const button = document.getElementById("help-button");
+    const popover = document.getElementById("help-popover");
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      const open = popover.hidden;
+      closeExportMenu();
+      popover.hidden = !open;
+      button.setAttribute("aria-expanded", String(open));
+    });
+    popover.addEventListener("click", event => {
+      const item = event.target.closest("[data-help], a");
+      if (!item) return;
+      closeExportMenu();
+      if (item.dataset.help === "guide") showOnboarding();
+      if (item.dataset.help === "shortcuts") openShortcuts();
+      if (item.dataset.help === "support") openDialog("support-dialog");
+    });
+    document.querySelectorAll("[data-open-shortcuts]").forEach(el => el.addEventListener("click", openShortcuts));
+    document.querySelectorAll("dialog").forEach(dialog => {
+      dialog.querySelector("[data-close-dialog]")?.addEventListener("click", () => dialog.close());
+      dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
+    });
   }
 
-  function openShortcuts() {
-    const dialog = document.getElementById("shortcuts-dialog");
+  function openDialog(id) {
+    const dialog = document.getElementById(id);
     if (dialog.open) return;
     closeExportMenu();
     if (dialog.showModal) dialog.showModal(); else dialog.setAttribute("open", "");
   }
 
+  function openShortcuts() { openDialog("shortcuts-dialog"); }
+
   // First visit: a card with the three steps. It goes away for good on «Понятно» or with the first marked object.
   function bindOnboarding() {
     const card = document.getElementById("onboarding");
     card.hidden = loadUiPreference("onboarded", false);
+    if (!card.hidden) card.dataset.firstRun = "1";
     document.getElementById("onboarding-ok").addEventListener("click", dismissOnboarding);
+    document.getElementById("onboarding-close").addEventListener("click", dismissOnboarding);
+  }
+
+  // Brought back from the «?» menu; it stays until closed again.
+  function showOnboarding() {
+    const card = document.getElementById("onboarding");
+    delete card.dataset.firstRun;
+    card.hidden = false;
+    document.getElementById("onboarding-ok").focus();
   }
 
   function dismissOnboarding() {
@@ -3377,9 +3475,12 @@
   }
 
   function closePanels() { document.querySelectorAll(".panel-column").forEach(panel => panel.classList.remove("is-open")); }
+  // Closes the header popovers (export and help).
   function closeExportMenu() {
     document.getElementById("export-popover").hidden = true;
     document.getElementById("export-main").setAttribute("aria-expanded", "false");
+    document.getElementById("help-popover").hidden = true;
+    document.getElementById("help-button").setAttribute("aria-expanded", "false");
   }
   function exportStem() {
     const now = new Date();
