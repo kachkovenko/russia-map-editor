@@ -1556,8 +1556,7 @@
     focus.addEventListener("click", event => event.stopPropagation());
     focus.addEventListener("dblclick", event => {
       event.stopPropagation();
-      state.lensLon = state.mapScope === "world" ? 35 : defaults.lensLon;
-      state.lensLat = state.mapScope === "world" ? 25 : defaults.lensLat;
+      ({ lensLon: state.lensLon, lensLat: state.lensLat } = scopeDefaults(state.mapScope));
       render(); saveState();
       showToast("Точка обзора — в центре карты");
     });
@@ -1707,10 +1706,8 @@
       if (state.mapScope === button.dataset.mapScope) return;
       if (!datasets[button.dataset.mapScope]) { showToast("Мировой набор данных не загрузился"); return; }
       state.mapScope=button.dataset.mapScope; state.query=""; state.tab="regions";
-      state.projection=state.mapScope==="world"?"globe":"conic";
-      state.lensLon=state.mapScope==="world"?35:defaults.lensLon; state.lensLat=state.mapScope==="world"?25:defaults.lensLat;
+      Object.assign(state, scopeDefaults(state.mapScope));
       state.zoom=1; state.mapX=0; state.mapY=0; state.rotation=0; state.panX=0; state.panY=0; state.viewZoom=1;
-      if(state.mapScope==="world") state.globeSurface=true;
       syncDataset(); syncControls(); updateList(); updateSelectionBar(); render(); saveState();
     }));
     bindCheck("globe-surface-enabled","globeSurface",render);
@@ -2548,8 +2545,20 @@
     updateSelectionCount();
   }
 
+  // The starting view of each map: Russia flat in the atlas projection, the world as a lit globe over Europe and Africa.
+  // (Russia keeps whatever globe surface was set when switched to; a reset turns it off with the other defaults.)
+  function scopeDefaults(scope) {
+    return scope === "world"
+      ? { projection: "globe", lensLon: 35, lensLat: 25, globeSurface: true }
+      : { projection: "conic", lensLon: defaults.lensLon, lensLat: defaults.lensLat };
+  }
+
+  // Resets the map that is open: the world stays the world, back to its own starting view.
   function resetAll() {
+    const scope = state.mapScope;
     Object.keys(defaults).forEach(key => state[key] = defaults[key]);
+    state.mapScope = scope;
+    Object.assign(state, scopeDefaults(scope));
     state.query = "";
     state.selectedRegions.clear(); state.selectedCities.clear(); state.cityLabelOffsets = {};
     state.regionColors = {}; state.activeRegions.clear(); state.mapSelected = false;
