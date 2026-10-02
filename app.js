@@ -52,14 +52,14 @@
     labelStyle: "plain", labelBackground: "#ffffff", routeMode: "off", routeStyle: "solid", routeColor: "#4263eb", routeWidth: 2, routeBend: 25, routeHub: "", routeSeed: 1,
     tab: "regions", mapStyle: "atlas", dotPitch: 12, dotSize: 60, dotShape: "circle", dotLayout: "grid", mosaicBorders: false,
     gradient: true, gradientType: "linear", fillStart: "#3b5f8a", fillEnd: "#b9cad8",
-    angle: 25, gradientStart: 0, gradientEnd: 100, opacity: 1, selectedColor: "#ff5f46", borders: true, borderColor: "#ffffff",
+    angle: 25, gradientStart: 0, gradientEnd: 100, opacity: 1, selectedColor: "#ff5f46", borders: true, borderColor: "#bfc2d9",
     borderWidth: 0.8, regionLabels: false, regionLabelsMode: "all", regionLabelsCaps: false, regionFontSize: 11, cityLabels: true, cityFontSize: 12,
     labelFont: "inter", leaderLines: true, leaderColor: "#171717", labelHalo: true, labelHaloWidth: 1.5, labelHaloColor: "#ffffff",
     markerColor: "#171717", markerShape: "circle", markerSize: 6, markerOutline: true, markerOutlineColor: "#ffffff",
     projection: "conic", rotation: 0, graticule: false, graticuleStep: 10, graticuleColor: "#171717", compass: false, frame: true, ratio: "16:9",
     background: "#ffffff", transparent: false, zoom: 1, mapX: 0, mapY: 0, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, lensLon: 91.06, lensLat: 65.36, projectCompanion: false, fontCompanion: false,
     pngScale: 2,
-    countryOutline: true, countryOutlineColor: "#20344c", countryOutlineWidth: 1.1, cityLabelColor: "#171717"
+    countryOutline: false, countryOutlineColor: "#20344c", countryOutlineWidth: 1.1, cityLabelColor: "#171717"
   };
   const PROJECT_SETTING_KEYS = Object.freeze([
     "mapScope", "globeSurface", "oceanColor", "globeLight", "globeGloss", "lightAngle",
@@ -99,7 +99,7 @@
   const CAPS_TRACKING = .14;
   // Ready-made colour themes: one click sets every shared colour; per-region colours stay as they are.
   const THEMES = Object.freeze([
-    { id: "calm", name: "Сдержанная", colors: { gradient: true, fillStart: "#3b5f8a", fillEnd: "#b9cad8", selectedColor: "#ff5f46", borderColor: "#ffffff", background: "#ffffff", markerColor: "#171717", markerOutlineColor: "#ffffff", labelHaloColor: "#ffffff", leaderColor: "#171717", labelBackground: "#ffffff", graticuleColor: "#171717", routeColor: "#4263eb", oceanColor: "#e5e7eb", countryOutlineColor: "#20344c", cityLabelColor: "#171717" } },
+    { id: "calm", name: "Сдержанная", colors: { gradient: true, fillStart: "#3b5f8a", fillEnd: "#b9cad8", selectedColor: "#ff5f46", borderColor: "#bfc2d9", background: "#ffffff", markerColor: "#171717", markerOutlineColor: "#ffffff", labelHaloColor: "#ffffff", leaderColor: "#171717", labelBackground: "#ffffff", graticuleColor: "#171717", routeColor: "#4263eb", oceanColor: "#e5e7eb", countryOutlineColor: "#20344c", cityLabelColor: "#171717" } },
     { id: "contrast", name: "Контрастная", colors: { gradient: false, fillStart: "#d5dbe6", fillEnd: "#d5dbe6", selectedColor: "#e63946", borderColor: "#ffffff", background: "#ffffff", markerColor: "#111827", markerOutlineColor: "#ffffff", labelHaloColor: "#ffffff", leaderColor: "#111827", labelBackground: "#ffffff", graticuleColor: "#94a3b8", routeColor: "#e63946", oceanColor: "#eef2f7", countryOutlineColor: "#111827", cityLabelColor: "#111827" } },
     { id: "mono", name: "Монохром", colors: { gradient: false, fillStart: "#d4d4d4", fillEnd: "#d4d4d4", selectedColor: "#262626", borderColor: "#ffffff", background: "#ffffff", markerColor: "#171717", markerOutlineColor: "#ffffff", labelHaloColor: "#ffffff", leaderColor: "#404040", labelBackground: "#ffffff", graticuleColor: "#a3a3a3", routeColor: "#262626", oceanColor: "#f2f2f2", countryOutlineColor: "#262626", cityLabelColor: "#171717" } },
     { id: "dark", name: "Тёмная", colors: { gradient: true, fillStart: "#3d4f6b", fillEnd: "#6b7f9e", selectedColor: "#f5a524", borderColor: "#131a2a", background: "#131a2a", markerColor: "#f8fafc", markerOutlineColor: "#131a2a", labelHaloColor: "#131a2a", leaderColor: "#cbd5e1", labelBackground: "#1f2a40", graticuleColor: "#56657f", routeColor: "#38bdf8", oceanColor: "#1c2638", countryOutlineColor: "#8fa3c4", cityLabelColor: "#f8fafc" } },
@@ -147,8 +147,8 @@
   let labelGroups = null;
   let toastTimer = null;
   let toastAction = null;
-  // Inspector folds (UI preference): a first visit opens only the slide, the map view and the fill.
-  const DEFAULT_COLLAPSED = ["lighting", "borders", "labels", "routes"];
+  // Inspector folds (UI preference): a first visit sees every section folded — a short list of headings, no long scroll.
+  const DEFAULT_COLLAPSED = ["style", "fill", "lighting", "borders", "labels", "routes", "slide"];
   let collapsedSections = null;
   let applySectionFolds = () => {};
   // Colours picked recently, offered again in the project palette.
@@ -1990,7 +1990,6 @@
   }
 
   // Inspector sections collapse like PowerPoint's format pane; the folded state is a UI preference, not part of the project.
-  // A first visit opens only the slide, the map view and the fill; the rest waits folded.
   function bindSectionToggles() {
     const sections = [...document.querySelectorAll(".control-section[data-section]")];
     const collapsed = collapsedSections = new Set(loadUiPreference("folded", DEFAULT_COLLAPSED).filter(id => sections.some(s => s.dataset.section === id)));
@@ -2769,7 +2768,7 @@
     // Before these settings existed, city labels took the marker colour and the country outline came and went with
     // the region borders.
     if (!Object.prototype.hasOwnProperty.call(input, "cityLabelColor")) clean.cityLabelColor = clean.labelStyle === "pill" ? "#29303c" : clean.markerColor;
-    if (!Object.prototype.hasOwnProperty.call(input, "countryOutline") && input.borders === false) clean.countryOutline = false;
+    if (!Object.prototype.hasOwnProperty.call(input, "countryOutline")) clean.countryOutline = input.borders !== false;
     if (clean.gradientStart > clean.gradientEnd) {
       if (strict) throw new Error("начальная точка градиента не может быть правее конечной");
       clean.gradientStart = defaults.gradientStart;
