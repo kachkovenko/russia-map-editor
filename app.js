@@ -26,6 +26,9 @@
   };
   // Region lookup for the mosaic is rasterised; sides above this many pixels are scaled down.
   const MAX_SAMPLE_SIDE = 4096;
+  // Turn zones outside the map frame's corners: which way is «outside» for each, and how its cursor arrow is turned.
+  const TURN_OUTWARD = Object.freeze({ nw: [-1, -1], ne: [1, -1], se: [1, 1], sw: [-1, 1] });
+  const TURN_CURSOR_ANGLE = Object.freeze({ nw: 0, ne: 90, se: 180, sw: 270 });
   // Pixels searched around an ambiguous sample, by distance: ring 1 (edges, then corners), then ring 2.
   const NEIGHBOURS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1], [2, 0], [-2, 0], [0, 2], [0, -2]];
   const PROJECTION_HELP = Object.freeze({
@@ -1441,6 +1444,13 @@
   }
 
   // Corners of the frame in slide coordinates, turned with the map.
+  function turnCursor(angle) {
+    const arc = "M6 15A9 9 0 0 1 15 6M3 12l3 3 3-3M12 3l3 3-3 3";
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><g transform="rotate(${angle} 12 12)" fill="none" stroke-linecap="round" stroke-linejoin="round">` +
+      `<path d="${arc}" stroke="#fff" stroke-width="4"/><path d="${arc}" stroke="#1c2740" stroke-width="1.7"/></g></svg>`;
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, grab`;
+  }
+
   function frameCorners() {
     const f = mapFrame;
     const local = { nw: [f.x, f.y], ne: [f.x + f.width, f.y], se: [f.x + f.width, f.y + f.height], sw: [f.x, f.y + f.height] };
@@ -1485,6 +1495,14 @@
     const corners = { nw: [b.x, b.y], ne: [b.x + b.width, b.y], se: [b.x + b.width, b.y + b.height], sw: [b.x, b.y + b.height] };
     overlay.selectAll(".map-selection__corner").attr("display", state.frame ? null : "none")
       .attr("transform", function () { const c = corners[this.dataset.handle]; return `translate(${c[0]},${c[1]}) scale(${k})`; });
+    // Turn zones: a 22 px square just outside each corner (overlapping the corner by 4 px, under the resize square).
+    const turnableMap = Math.abs(b.anglePerDegree) > 1e-6;
+    overlay.selectAll(".map-selection__turn").attr("display", turnableMap ? null : "none")
+      .attr("transform", function () { const c = corners[this.dataset.turn]; return `translate(${c[0]},${c[1]}) scale(${k})`; })
+      .select("rect").each(function () {
+        const [sx, sy] = TURN_OUTWARD[this.parentNode.dataset.turn];
+        d3.select(this).attr("x", sx < 0 ? -22 : -4).attr("y", sy < 0 ? -22 : -4).attr("width", 26).attr("height", 26);
+      });
     const topX = b.x + b.width / 2, topY = b.y;
     const turnable = Math.abs(b.anglePerDegree) > 1e-6;
     overlay.select(".map-selection__stem").attr("display", turnable ? null : "none")
@@ -1562,6 +1580,8 @@
   }
 
   function bindMapHandles() {
+    // Each turn zone gets a curved double arrow bending around its own corner.
+    document.querySelectorAll(".map-selection__turn").forEach(zone => { zone.style.cursor = turnCursor(TURN_CURSOR_ANGLE[zone.dataset.turn]); });
     const handles = d3.select("#map-selection").selectAll("[data-handle]");
     handles.on("pointerdown", function (event) {
       if (event.button !== 0 && event.pointerType === "mouse") return;

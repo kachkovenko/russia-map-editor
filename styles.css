@@ -250,6 +250,8 @@ kbd { padding: 2px 6px; color: var(--muted); border: 1px solid var(--line); bord
 .map-selection__handle rect, .map-selection__handle circle { fill: #fff; stroke: var(--accent); stroke-width: 1.5; }
 .map-selection__handle path { stroke: var(--accent); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .map-selection__handle:hover rect, .map-selection__handle:hover circle { fill: var(--accent-soft); }
+/* Turn zones just outside each corner, as in Figma: invisible, they only change the cursor and turn the map. */
+.map-selection__turn rect, .map-selection__turn:hover rect { fill: transparent; stroke: none; }
 .map-selection__rotate { cursor: grab; }
 .map-selection__rotate.is-dragging { cursor: grabbing; }
 .map-selection__corner[data-handle="nw"], .map-selection__corner[data-handle="se"] { cursor: nwse-resize; }
