@@ -156,6 +156,7 @@
                 <path id="graticule" class="graticule" display="none"></path>
                 <g id="globe-light" pointer-events="none" display="none"><path class="globe-light__shade" fill="url(#globe-shade)"></path><path class="globe-light__gloss" fill="url(#globe-gloss)"></path></g>
                 <g id="routes-layer" pointer-events="none"></g>
+                <g id="callouts-layer" pointer-events="none"></g>
                 <g id="region-label-backgrounds" pointer-events="none"></g>
                 <g id="region-labels"></g>
                 <g id="cities-layer"></g>
@@ -399,9 +400,14 @@
               <div class="control-group" id="city-controls">
                 <label class="switch-row"><span>Подписи городов</span><input class="switch" id="city-labels-enabled" type="checkbox" checked></label>
                 <div class="sub-options" id="city-label-options">
+                  <div class="segmented segmented--sub" id="city-label-layout" role="group" aria-label="Где подписывать города">
+                    <button type="button" class="is-active" data-city-layout="near">У города</button>
+                    <button type="button" data-city-layout="legend">Легендой внизу</button>
+                  </div>
+                  <p class="microcopy" id="city-layout-hint" hidden>Города нумеруются с запада на восток, выноски ведут к списку под картой и не пересекаются. Карта сама освобождает место под легенду.</p>
                   <label class="color-row"><span>Цвет текста</span><span class="swatch"><input id="city-label-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="city-label-color" value="#171717" maxlength="7" aria-label="HEX-код текста подписей городов" spellcheck="false"></span></label>
                   <label class="range-row"><span>Размер подписей <output id="city-font-size-value">12 px</output></span><span class="range-track" style="--ticks: 20"><input id="city-font-size" type="range" min="8" max="28" value="12"></span></label>
-                  <label class="switch-row"><span>Линии выноски</span><input class="switch" id="leader-lines" type="checkbox" checked></label>
+                  <label class="switch-row" id="leader-lines-row"><span>Линии выноски</span><input class="switch" id="leader-lines" type="checkbox" checked></label>
                   <label class="color-row" id="leader-color-control"><span>Цвет выноски</span><span class="swatch"><input id="leader-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="leader-color" value="#171717" maxlength="7" aria-label="HEX-код линии выноски" spellcheck="false"></span></label>
                 </div>
                 <label class="color-row"><span>Цвет маркеров</span><span class="swatch"><input id="marker-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="marker-color" value="#171717" maxlength="7" aria-label="HEX-код маркеров" spellcheck="false"></span></label>

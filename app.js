@@ -62,7 +62,8 @@
     projection: "conic", rotation: 0, graticule: false, graticuleStep: 10, graticuleColor: "#171717", compass: false, frame: true, ratio: "16:9",
     background: "#ffffff", transparent: false, zoom: 1, mapX: 0, mapY: 0, viewZoom: 1, panX: 0, panY: 0, lensStrength: 55, lensLon: 91.06, lensLat: 65.36, projectCompanion: false, fontCompanion: false,
     pngScale: 2,
-    countryOutline: false, countryOutlineColor: "#20344c", countryOutlineWidth: 1.1, cityLabelColor: "#171717"
+    countryOutline: false, countryOutlineColor: "#20344c", countryOutlineWidth: 1.1, cityLabelColor: "#171717",
+    cityLabelLayout: "near"
   };
   const PROJECT_SETTING_KEYS = Object.freeze([
     "mapScope", "globeSurface", "oceanColor", "globeLight", "globeGloss", "lightAngle",
@@ -75,7 +76,7 @@
     "projection", "rotation", "graticule", "graticuleStep", "graticuleColor", "compass", "frame", "ratio", "background", "transparent",
     "zoom", "mapX", "mapY", "viewZoom", "panX", "panY", "lensStrength", "lensLon", "lensLat",
     "projectCompanion", "fontCompanion", "pngScale",
-    "countryOutline", "countryOutlineColor", "countryOutlineWidth", "cityLabelColor"
+    "countryOutline", "countryOutlineColor", "countryOutlineWidth", "cityLabelColor", "cityLabelLayout"
   ]);
   const VIEW_KEYS = Object.freeze(["viewZoom", "panX", "panY"]);
   const BOOLEAN_SETTINGS = new Set(["globeSurface", "mosaicBorders", "gradient", "borders", "regionLabels", "regionLabelsCaps", "cityLabels", "leaderLines", "labelHalo", "markerOutline", "graticule", "compass", "frame", "transparent", "projectCompanion", "fontCompanion", "countryOutline"]);
@@ -94,7 +95,7 @@
     labelStyle: ["plain", "pill"], routeMode: ["off", "hub", "network", "chain"], routeStyle: ["solid", "dashed", "dotted"],
     gradientType: ["linear", "radial"], mapStyle: ["atlas", "mosaic"], dotShape: ["circle", "square", "rounded"], dotLayout: ["grid", "stagger"],
     projection: ["conic", "mercator", "globe"], ratio: ["16:9", "4:3"], tab: ["regions", "cities", "selected"], regionLabelsMode: ["all", "selected"],
-    markerShape: ["circle", "square", "diamond", "pin"], labelFont: Object.keys(LABEL_FONTS), graticuleStep: [10, 5], pngScale: [1, 2, 4]
+    markerShape: ["circle", "square", "diamond", "pin"], labelFont: Object.keys(LABEL_FONTS), graticuleStep: [10, 5], pngScale: [1, 2, 4], cityLabelLayout: ["near", "legend"]
   });
   // Graticule window: Russia's extent with a margin, so the net reads as a sector of the globe around the country.
   const GRATICULE_EXTENT = [[15, 40], [195, 82]];
@@ -156,6 +157,10 @@
   let applySectionFolds = () => {};
   // Colours picked recently, offered again in the project palette.
   const recentColors = [];
+  // Callout legend (cities numbered on the map, names listed under it): the rows laid out by the last restyle (for the
+  // PPTX export) and the bottom reserve the map was fitted with.
+  let calloutRows = [];
+  let calloutReserveUsed = 0;
   // The one region that is the map's tab stop.
   let focusRegionId = null;
   // Close-up geometry for Russia (data/regions-detail.topojson.js, all source points): fetched on first need and used
@@ -310,6 +315,7 @@
     cityGroups.append("circle").attr("class", "city-marker__ring");
     cityGroups.append("path").attr("class", "city-marker");
     cityGroups.append("circle").attr("class", "city-marker__eye");
+    cityGroups.append("text").attr("class", "city-number").attr("pointer-events", "none").attr("text-anchor", "middle");
     cityGroups.append("rect").attr("class", "city-label-background").attr("pointer-events", "none");
     cityGroups.append("text").attr("class", "city-label").text(d => d.name)
       .on("pointerdown", startLabelDrag)
@@ -387,7 +393,7 @@
       const globe = state.projection === "globe";
       const p = globe ? perspectiveProjection(state.lensStrength).rotate([-state.lensLon,-state.lensLat,-state.rotation])
         : state.projection === "mercator" ? d3.geoMercator() : d3.geoEqualEarth();
-      p.fitExtent([[width*.065,height*.07],[width*.935,height*.93]], {type:"Sphere"});
+      p.fitExtent([[width*.065,height*.07],[width*.935,fitBottom(height*.93)]], {type:"Sphere"});
       fitTranslate = p.translate();
       const placement=mapPlacement();
       p.scale(p.scale()*placement.zoom).translate([fitTranslate[0]+placement.x,fitTranslate[1]+placement.y]);
@@ -401,7 +407,7 @@
       ? d3.geoMercator().rotate([-centerLon, 0])
       : d3.geoConicEqualArea().parallels([50, 70]).rotate([-centerLon, 0]);
     const collection = { type: "FeatureCollection", features };
-    const unrotated = projectionFor(105).fitExtent([[width * .075, height * .12], [width * .925, height * .88]], collection);
+    const unrotated = projectionFor(105).fitExtent([[width * .075, height * .12], [width * .925, fitBottom(height * .88)]], collection);
     const fitScale = unrotated.scale();
     fitTranslate = unrotated.translate();
     const unitBounds = d3.geoPath(unrotated).bounds(collection);
@@ -672,27 +678,30 @@
 
     const geo = markerGeometry();
     // In the mosaic the marker is one of the grid's own dots: same shape and size, no outline.
-    const markerD = mosaic ? dotsPath([[0, 0]], geo.r, state.dotShape) : markerPath(geo.shape, geo.r);
-    const markerOutline = state.markerOutline && !mosaic;
+    const callout = calloutMode();
+    // With the callout legend every city is a numbered circle, in the mosaic as well.
+    const markerD = callout ? markerPath("circle", geo.r) : mosaic ? dotsPath([[0, 0]], geo.r, state.dotShape) : markerPath(geo.shape, geo.r);
+    const markerOutline = state.markerOutline && (callout || !mosaic);
+    const nearLabels = state.cityLabels && !callout;
     cityGroups.each(function (d) {
       const visible = state.selectedCities.has(d.id) && !!d.point;
       const group = d3.select(this).attr("display", visible ? null : "none");
       if (!visible) return;
       group.attr("transform", `translate(${d.point[0]},${d.point[1]})`);
-      group.select(".city-marker__ring").attr("display", geo.shape === "circle" && !mosaic ? null : "none")
+      group.select(".city-marker__ring").attr("display", geo.shape === "circle" && !mosaic && !callout ? null : "none")
         .attr("r", geo.reach).attr("stroke", state.markerColor);
       group.select(".city-marker").attr("d", markerD).attr("fill", state.markerColor)
         .attr("stroke", markerOutline ? state.markerOutlineColor : "none")
         .attr("stroke-width", markerOutline ? 1.5 : 0).attr("stroke-linejoin", "round");
-      group.select(".city-marker__eye").attr("display", geo.shape === "pin" && !mosaic ? null : "none")
+      group.select(".city-marker__eye").attr("display", geo.shape === "pin" && !mosaic && !callout ? null : "none")
         .attr("cx", 0).attr("cy", geo.cy).attr("r", geo.r * .38).attr("fill", state.markerOutlineColor);
-      const leader = state.cityLabels ? d.label.leader : null;
+      const leader = nearLabels ? d.label.leader : null;
       group.select(".city-leader").attr("display", leader ? null : "none")
         .attr("x1", leader ? leader.x1 : 0).attr("y1", leader ? leader.y1 : 0)
         .attr("x2", leader ? leader.x2 : 0).attr("y2", leader ? leader.y2 : 0)
         .attr("stroke", state.leaderColor).attr("stroke-width", 1).attr("stroke-opacity", .85);
       group.select(".city-label")
-        .attr("display", state.cityLabels ? null : "none")
+        .attr("display", nearLabels ? null : "none")
         .attr("x", d.label.dx).attr("y", d.label.dy)
         .attr("text-anchor", d.label.anchor)
         .attr("font-size", state.cityFontSize)
@@ -701,10 +710,12 @@
         .attr("stroke-width", halo)
         .classed("is-manual", !!state.cityLabelOffsets[d.id]);
       const rect = labelRect([0, 0], d.label, textWidth(d.name, state.cityFontSize), state.cityFontSize);
-      group.select(".city-label-background").attr("display", state.cityLabels && state.labelStyle === "pill" ? null : "none")
+      group.select(".city-label-background").attr("display", nearLabels && state.labelStyle === "pill" ? null : "none")
         .attr("x", rect.x1).attr("y", rect.y1).attr("width", rect.x2 - rect.x1).attr("height", rect.y2 - rect.y1)
         .attr("rx", (rect.y2 - rect.y1) / 2).attr("fill", state.labelBackground).attr("fill-opacity", .95);
     });
+
+    renderCallouts();
 
     d3.select("#region-label-backgrounds").selectAll("rect")
       .data(state.labelStyle === "pill" ? features.filter(d => shownRegionLabels.has(d.properties.id)) : [], d => d.properties.id)
@@ -1103,6 +1114,10 @@
   // Marker geometry: `cx/cy` is the visual centre a label attaches to (a pin's tip sits on the coordinate, its body above),
   // `reach` the distance from that centre to the marker edge, `box` the rectangle the marker occupies.
   function markerGeometry() {
+    if (calloutMode()) {
+      const r = calloutRadius();
+      return { shape: "circle", r, cx: 0, cy: 0, reach: r, box: [-r, -r, r, r] };
+    }
     if (state.mapStyle === "mosaic") {
       const r = dotRadius();
       return { shape: state.dotShape === "circle" ? "circle" : "square", r, cx: 0, cy: 0, reach: r, box: [-r, -r, r, r] };
@@ -1121,6 +1136,142 @@
       case "pin": return `M0,0L${-.8 * r},${-r}A${r},${r} 0 1 1 ${.8 * r},${-r}Z`;
       default: return `M${-r},0a${r},${r} 0 1 0 ${2 * r},0a${r},${r} 0 1 0 ${-2 * r},0Z`;
     }
+  }
+
+  // ── Callout legend ────────────────────────────────────────────────────────────────────────────────────────────────
+  // Cities become numbered circles; their names go to a list under the map, in columns of up to five rows, and each
+  // circle is joined to its row by an orthogonal line with rounded corners: down from the city, along a channel under
+  // the map, down a lane beside its column, into the end of its row.
+  //
+  // The lines never cross, by construction. Cities are numbered west to east and the rows follow that order, so the
+  // lanes (inner lane for the upper row of a column, columns left to right) run in the same order as the cities. Of
+  // the lines that turn east, the more eastern one runs its channel higher; of those that turn west, the more western
+  // one does. An eastbound and a westbound line never share any stretch of the channel, and a straight one never meets
+  // a channel segment at all — so no vertical stretch can cut through another line's horizontal one.
+  function calloutMode() { return state.cityLabels && state.cityLabelLayout === "legend"; }
+
+  function calloutRadius() { return Math.max(state.markerSize, state.cityFontSize * .62); }
+
+  // Legend geometry: it depends only on the names and the text size, so the map can be fitted around it beforehand.
+  function calloutSpec() {
+    if (!calloutMode()) return null;
+    const names = cities.filter(city => state.selectedCities.has(city.id)).map(city => city.name);
+    const n = names.length;
+    if (!n) return null;
+    const fs = state.cityFontSize;
+    const numFs = Math.round(fs * .75 * 10) / 10;
+    const numW = textWidth(String(n), numFs) + fs * .7;
+    const nameW = Math.max(...names.map(name => textWidth(name, fs)));
+    const laneGap = Math.max(4, fs * .45), textGap = fs * .8, colGap = fs * 1.4, rowH = Math.round(fs * 1.6);
+    const margin = Math.round(width * .045);
+    let rows = Math.min(5, n), cols, colW;
+    for (;;) {
+      cols = Math.ceil(n / rows);
+      colW = numW + nameW + textGap + rows * laneGap + colGap;
+      if (cols * colW - colGap <= width - margin * 2 || rows >= n) break;
+      rows++;
+    }
+    const legendHeight = rows * rowH;
+    // Room for the channel: one line spacing (half the text size) per city, capped.
+    const band = fs * 1.6 + Math.min(n, 12) * Math.max(4, fs * .5);
+    return { n, fs, numFs, numW, nameW, laneGap, textGap, colW, rows, cols, rowH, margin, top: height - margin - legendHeight, reserve: legendHeight + margin + band };
+  }
+
+  // Lowest edge the auto-fitted map may reach: above the legend and its channel when the legend is on.
+  function fitBottom(bottom) {
+    const spec = calloutSpec();
+    calloutReserveUsed = spec ? spec.reserve : 0;
+    return spec ? Math.max(height * .45, Math.min(bottom, height - spec.reserve)) : bottom;
+  }
+
+  function renderCallouts() {
+    const layer = d3.select("#callouts-layer");
+    const spec = calloutSpec();
+    // The legend grew or shrank (cities added, text resized): refit the map around the new size.
+    if ((spec ? spec.reserve : 0) !== calloutReserveUsed) scheduleRender();
+    const items = spec ? cities.filter(city => state.selectedCities.has(city.id) && city.point)
+      .sort((a, b) => a.point[0] - b.point[0] || a.point[1] - b.point[1]) : [];
+    // Cities in one column (common in the mosaic, where they sit on grid dots) or almost so get their verticals at
+    // least 1.5 px apart, always to the east of the previous one, so every line keeps its own x in numbering order.
+    const lineX = new Map();
+    let previousX = -Infinity;
+    items.forEach(city => { previousX = Math.max(city.point[0], previousX + 1.5); lineX.set(city.id, previousX); });
+    const numbers = new Map(items.map((city, i) => [city.id, i + 1]));
+    cityGroups.select(".city-number").attr("display", d => numbers.has(d.id) ? null : "none").each(function (d) {
+      const number = numbers.get(d.id);
+      if (!number) return;
+      const size = calloutRadius() * (number < 10 ? 1.1 : .92);
+      d3.select(this).text(number).attr("font-size", size).attr("y", size * glyphMiddle(true))
+        .attr("fill", state.markerOutline ? state.markerOutlineColor : "#ffffff");
+    });
+    calloutRows = [];
+    if (!items.length) { layer.selectAll("*").remove(); return; }
+
+    const { fs, numFs, numW, nameW, laneGap, textGap, colW, rows, rowH, margin } = spec;
+    const r = calloutRadius();
+    const middle = glyphMiddle(false);
+    // The channel runs below the land and below every city (a turned or enlarged map can dip low); if the legend is
+    // in the way it moves down, as far as the slide allows.
+    const landBottom = Math.max(path.bounds(outline)[1][1], ...items.map(city => city.point[1] + r));
+    const legendHeight = rows * rowH;
+    const top = Math.max(spec.top, Math.min(height - legendHeight - fs * .4, landBottom + fs * 1.5 + Math.min(items.length, 12) * 3));
+    calloutRows = items.map((city, i) => {
+      const col = Math.floor(i / rows), row = i % rows;
+      const left = margin + col * colW;
+      const y = top + row * rowH + rowH / 2;
+      const nameRight = left + numW + textWidth(city.name, fs);
+      return {
+        city, number: i + 1, left, y, baseline: y + fs * middle, nameRight,
+        lane: left + numW + nameW + textGap + row * laneGap, x: lineX.get(city.id), my: city.point[1]
+      };
+    });
+    // Channel levels: eastbound lines highest-first from east to west, westbound from west to east.
+    const east = calloutRows.filter(d => d.lane > d.x + .5).sort((a, b) => b.x - a.x);
+    const west = calloutRows.filter(d => d.lane < d.x - .5).sort((a, b) => a.x - b.x);
+    const levels = Math.max(east.length, west.length);
+    const channelBottom = top - fs * .9;
+    // Lines are spaced up to half the text size apart, packed tighter (down to 1.5 px) rather than rise above a city.
+    const spacing = levels > 1 ? clamp((channelBottom - landBottom - fs * .6) / (levels - 1), 1.5, fs * .55) : 0;
+    [east, west].forEach(group => group.forEach((d, k) => { d.level = channelBottom - (levels - 1 - k) * spacing; }));
+    const corner = Math.min(fs * .5, 8);
+    calloutRows.forEach(d => {
+      const start = [d.x, d.my + Math.sqrt(Math.max(0, r * r - (d.x - d.city.point[0]) ** 2))];
+      const end = [d.nameRight + fs * .35, d.y];
+      d.points = d.level === undefined
+        ? [start, [d.x, d.y], end]
+        : [start, [d.x, d.level], [d.lane, d.level], [d.lane, d.y], end];
+    });
+
+    layer.selectAll("path").data(calloutRows, d => d.city.id).join("path").order().attr("class", "callout-line")
+      .attr("d", d => roundedPath(d.points, corner))
+      .attr("fill", "none").attr("stroke", state.leaderColor).attr("stroke-width", 1).attr("stroke-opacity", .85)
+      .attr("stroke-linejoin", "round").attr("stroke-linecap", "round");
+    layer.selectAll("text.callout-label--number").data(calloutRows, d => d.city.id).join("text")
+      .attr("class", "callout-label callout-label--number")
+      .attr("x", d => d.left + numW - fs * .5).attr("y", d => d.baseline).attr("text-anchor", "end")
+      .attr("font-size", numFs).attr("fill", state.cityLabelColor).attr("fill-opacity", .55).text(d => d.number);
+    layer.selectAll("text.callout-label--name").data(calloutRows, d => d.city.id).join("text")
+      .attr("class", "callout-label callout-label--name")
+      .attr("x", d => d.left + numW).attr("y", d => d.baseline)
+      .attr("font-size", fs).attr("fill", state.cityLabelColor).text(d => d.city.name);
+    // In the mosaic the dots under the legend give way, like under any label.
+    calloutRows.forEach(d => labelRects.push({ x1: d.left, y1: d.baseline - fs * .75, x2: d.nameRight, y2: d.baseline + fs * .25, kind: "label" }));
+  }
+
+  // An orthogonal polyline with its corners rounded by quadratic curves (radius capped at half of each segment).
+  function roundedPath(points, radius) {
+    const pts = points.filter((p, i) => i === 0 || Math.hypot(p[0] - points[i - 1][0], p[1] - points[i - 1][1]) > .01);
+    const f = v => Math.round(v * 10) / 10;
+    let d = `M${f(pts[0][0])},${f(pts[0][1])}`;
+    for (let i = 1; i < pts.length - 1; i++) {
+      const [px, py] = pts[i - 1], [cx, cy] = pts[i], [nx, ny] = pts[i + 1];
+      const l1 = Math.hypot(cx - px, cy - py), l2 = Math.hypot(nx - cx, ny - cy);
+      const rr = Math.min(radius, l1 / 2, l2 / 2);
+      if (rr < .5) { d += `L${f(cx)},${f(cy)}`; continue; }
+      d += `L${f(cx - (cx - px) / l1 * rr)},${f(cy - (cy - py) / l1 * rr)}Q${f(cx)},${f(cy)} ${f(cx + (nx - cx) / l2 * rr)},${f(cy + (ny - cy) / l2 * rr)}`;
+    }
+    const last = pts[pts.length - 1];
+    return `${d}L${f(last[0])},${f(last[1])}`;
   }
 
   // Greedy placement: bigger cities pick first; try right, left, above, below; manual offsets always win.
@@ -1151,12 +1302,12 @@
       if (manual) {
         placement = { dx: manual[0], dy: manual[1], anchor: "start", leader: null };
         if (state.leaderLines) placement.leader = manualLeader(geo, placement, w, fontSize, gap);
-      } else if (state.cityLabels) {
+      } else if (state.cityLabels && !calloutMode()) {
         placement = findPlacement(city, geo, gap, distances, fontSize, w, occupied, passes);
       }
       if (!placement) placement = labelPlacement(geo, LABEL_DIRECTIONS[0], gap, fontSize);
       city.label = placement;
-      if (state.cityLabels) occupied.push({ ...labelRect(city.point, placement, w, fontSize), kind: "label" });
+      if (state.cityLabels && !calloutMode()) occupied.push({ ...labelRect(city.point, placement, w, fontSize), kind: "label" });
     });
   }
 
@@ -1985,6 +2136,12 @@
     bindCheck("city-labels-enabled", "cityLabels", updateLabelModeControls);
     bindRange("city-font-size", "cityFontSize", "city-font-size-value", v => `${v} px`, Number);
     bindCheck("leader-lines", "leaderLines", updateLabelModeControls);
+    document.querySelectorAll("[data-city-layout]").forEach(button => button.addEventListener("click", () => {
+      if (state.cityLabelLayout === button.dataset.cityLayout) return;
+      state.cityLabelLayout = button.dataset.cityLayout;
+      // The map is refitted to leave room for the legend (or to take the room back).
+      updateLabelModeControls(); render(); saveState();
+    }));
     bindColor("leader-color", "leaderColor");
     bindCheck("label-halo", "labelHalo", updateLabelModeControls);
     bindRange("label-halo-width", "labelHaloWidth", "label-halo-width-value", v => `${String(v).replace(".", ",")} px`, Number);
@@ -2534,7 +2691,6 @@
     document.getElementById("mosaic-options").hidden = !mosaic;
     document.querySelectorAll("[data-dot-shape]").forEach(el => el.classList.toggle("is-active", el.dataset.dotShape === state.dotShape));
     document.querySelectorAll("[data-dot-layout]").forEach(el => el.classList.toggle("is-active", el.dataset.dotLayout === state.dotLayout));
-    ["marker-shape-row", "marker-size-row", "marker-outline-row"].forEach(id => { document.getElementById(id).hidden = mosaic; });
     document.querySelectorAll('[data-projection="globe"], [data-quick-projection="globe"]').forEach(el => {
       if (el.dataset.title === undefined) el.dataset.title = el.title;
       el.disabled = false;
@@ -2558,8 +2714,19 @@
     document.getElementById("region-label-options").hidden = !state.regionLabels;
     document.getElementById("city-label-options").hidden = !state.cityLabels;
     document.getElementById("halo-options").hidden = !state.labelHalo;
-    document.getElementById("leader-color-control").hidden = !state.leaderLines;
-    document.getElementById("marker-outline-options").hidden = !state.markerOutline || state.mapStyle === "mosaic";
+    const legend = state.cityLabelLayout === "legend";
+    document.querySelectorAll("[data-city-layout]").forEach(el => el.classList.toggle("is-active", el.dataset.cityLayout === state.cityLabelLayout));
+    document.getElementById("city-layout-hint").hidden = !legend;
+    document.getElementById("leader-lines-row").hidden = legend;
+    document.getElementById("leader-color-control").hidden = !legend && !state.leaderLines;
+    // Marker settings that do nothing are hidden: the mosaic's markers are grid dots, the legend's are numbered circles
+    // (whose size and outline still apply, in the mosaic too).
+    const legendMarkers = state.cityLabels && state.cityLabelLayout === "legend";
+    const dotMarkers = state.mapStyle === "mosaic" && !legendMarkers;
+    document.getElementById("marker-shape-row").hidden = dotMarkers || legendMarkers;
+    document.getElementById("marker-size-row").hidden = dotMarkers;
+    document.getElementById("marker-outline-row").hidden = dotMarkers;
+    document.getElementById("marker-outline-options").hidden = !state.markerOutline || dotMarkers;
     document.querySelectorAll("[data-labels-mode]").forEach(el => el.classList.toggle("is-active", el.dataset.labelsMode === state.regionLabelsMode));
     document.querySelectorAll("[data-marker-shape]").forEach(el => el.classList.toggle("is-active", el.dataset.markerShape === state.markerShape));
   }
@@ -3016,7 +3183,7 @@
     bg.removeAttribute("display");
     bg.setAttribute("x", bounds.x); bg.setAttribute("y", bounds.y); bg.setAttribute("width", bounds.width); bg.setAttribute("height", bounds.height);
     if (!state.frame && state.transparent) bg.setAttribute("fill-opacity", "0");
-    if (omitLabels) clone.querySelectorAll(".city-label, .region-label").forEach(label => label.remove());
+    if (omitLabels) clone.querySelectorAll(".city-label, .region-label, .callout-label").forEach(label => label.remove());
     clone.querySelectorAll("[display='none']").forEach(el => el.remove());
     clone.querySelectorAll("[tabindex], [role], [aria-label]").forEach(el => {
       el.removeAttribute("tabindex"); el.removeAttribute("role"); el.removeAttribute("aria-label");
@@ -3265,7 +3432,13 @@
         place(regionLabelText(d), d.centroid[0], d.centroid[1], "middle", state.regionFontSize, color, state.regionLabelsCaps ? CAPS_TRACKING : 0);
       });
     }
-    if (state.cityLabels) {
+    if (calloutMode()) {
+      calloutRows.forEach(row => {
+        const numFs = Math.round(state.cityFontSize * .75 * 10) / 10;
+        place(String(row.number), row.left + calloutSpec().numW - state.cityFontSize * .5, row.baseline, "end", numFs, state.cityLabelColor);
+        place(row.city.name, row.left + calloutSpec().numW, row.baseline, "start", state.cityFontSize, state.cityLabelColor);
+      });
+    } else if (state.cityLabels) {
       cities.forEach(city => {
         if (!state.selectedCities.has(city.id) || !city.point || !city.label) return;
         place(city.name, city.point[0] + city.label.dx, city.point[1] + city.label.dy, city.label.anchor, state.cityFontSize, state.cityLabelColor);

@@ -33,6 +33,7 @@
 
 Любая настройка из файла проекта тоже задаётся по имени, со значениями `1/0`, числом, HEX или вариантом из списка. Самые полезные:
 - `regionLabels=1` — подписи регионов; `regionLabelsMode=selected` — только отмеченных; `regionLabelsCaps=1` — капителью.
+- `cityLabelLayout=legend` — города номерами на карте, названия списком под картой с выносками (удобно, когда городов много); по умолчанию `near` — подпись рядом с городом.
 - `cityLabels=0` — без подписей городов; `markerShape=circle|square|diamond|pin`; `markerSize=3…12`.
 - `labelFont=inter|golos-text|montserrat|pt-sans|pt-serif|unbounded|arial|georgia`; `labelStyle=pill` — подписи на подложке.
 - `gradient=0` — сплошная заливка; `fillStart`, `fillEnd` — цвета заливки неотмеченных регионов; `selectedColor` — цвет отмеченных.
