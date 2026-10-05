@@ -3383,7 +3383,7 @@
       const prompt = document.getElementById("ai-prompt");
       try { await navigator.clipboard.writeText(prompt.value); }
       catch (_) { prompt.select(); document.execCommand("copy"); }
-      showToast("Инструкция скопирована — вставьте её в чат с ИИ и допишите задачу");
+      showToast("Инструкция скопирована — вставьте её в свой чат с ChatGPT или другим ИИ и допишите задачу");
     });
     document.querySelectorAll("[data-open-shortcuts]").forEach(el => el.addEventListener("click", openShortcuts));
     document.querySelectorAll("dialog").forEach(dialog => {

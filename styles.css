@@ -94,10 +94,9 @@ button { color: inherit; }
 .export-popover > button, .export-popover > a { display: grid; grid-template-columns: 64px 1fr auto; align-items: center; gap: 0 8px; width: 100%; padding: 10px 10px; text-align: left; border: 0; border-radius: var(--radius-sm); background: transparent; cursor: pointer; }
 .export-popover > button:hover, .export-popover > a:hover { background: var(--hover); }
 .help-menu { position: relative; }
-.help-popover { width: 300px; }
-.help-popover > button, .help-popover > a { grid-template-columns: 1fr auto; gap: 2px 8px; }
-.help-popover small { grid-column: 1; }
-.help-popover .shortcut { grid-column: 2; grid-row: 1 / span 2; }
+.help-popover { width: 240px; }
+.help-popover > button, .help-popover > a { grid-template-columns: 1fr auto; gap: 8px; padding: 10px 12px; }
+.help-popover b { font-weight: 500; }
 .export-popover .shortcut { padding: 1px 5px; font-size: 11px; }
 .export-popover__scale { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px 8px 82px; color: var(--muted); font-size: 12px; }
 .export-popover__scale .segmented--inline button { padding: 4px 10px; font-size: 12px; }
@@ -300,6 +299,9 @@ kbd { padding: 2px 6px; color: var(--muted); border: 1px solid var(--line); bord
 .support__body p { margin: 0 0 16px; }
 .support__link { width: 100%; text-decoration: none; }
 .ai-help { width: min(92vw, 520px); }
+.ai-help__steps { margin: 0 0 12px; padding-left: 20px; }
+.ai-help__steps li + li { margin-top: 4px; }
+.ai-help__note { color: var(--muted); font-size: 12px; }
 .ai-help__prompt { display: block; box-sizing: border-box; width: 100%; margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); outline: 0; color: var(--ink); background: var(--field); font: 12px/1.5 var(--font-ui); resize: vertical; }
 .ai-help__prompt:focus { border-color: var(--accent); }
 .shortcuts__list { margin: 0; padding: 0 22px 20px; }

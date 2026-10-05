@@ -48,12 +48,12 @@
         <div class="help-menu">
           <button class="icon-button help-button" id="help-button" type="button" aria-label="Справка" title="Справка" aria-haspopup="menu" aria-expanded="false" aria-controls="help-popover">?</button>
           <div class="export-popover help-popover" id="help-popover" role="menu" hidden>
-            <button type="button" role="menuitem" data-help="guide"><b>Как собрать карту</b><small>Три шага от выбора регионов до экспорта</small></button>
-            <button type="button" role="menuitem" data-help="shortcuts"><b>Горячие клавиши</b><small>Все сочетания и жесты</small><kbd class="shortcut">?</kbd></button>
-            <button type="button" role="menuitem" data-help="ai"><b>Карта через ИИ</b><small>Инструкция для ChatGPT, Claude и других</small></button>
-            <button type="button" role="menuitem" data-help="support"><b>Поддержка</b><small>Вопросы и предложения</small></button>
+            <button type="button" role="menuitem" data-help="guide"><b>Как собрать карту</b></button>
+            <button type="button" role="menuitem" data-help="shortcuts"><b>Горячие клавиши</b><kbd class="shortcut">?</kbd></button>
+            <button type="button" role="menuitem" data-help="ai"><b>Карта с помощью ИИ</b></button>
+            <button type="button" role="menuitem" data-help="support"><b>Поддержка</b></button>
             <div class="export-popover__divider"></div>
-            <a role="menuitem" href="https://github.com/kachkovenko/russia-map-editor/blob/main/LICENSE.md" target="_blank" rel="noopener"><b>Лицензия</b><small>Карты свободны, код — только для просмотра</small></a>
+            <a role="menuitem" href="https://github.com/kachkovenko/russia-map-editor/blob/main/LICENSE.md" target="_blank" rel="noopener"><b>Лицензия</b></a>
           </div>
         </div>
         <button class="button button--ghost" id="reset-all" type="button" aria-haspopup="dialog">Сбросить</button>
@@ -484,9 +484,16 @@
   </dialog>
 
   <dialog class="shortcuts ai-help" id="ai-dialog" aria-labelledby="ai-title">
-    <div class="shortcuts__head"><h2 id="ai-title">Карта через ИИ</h2><button type="button" class="icon-button" data-close-dialog aria-label="Закрыть">×</button></div>
+    <div class="shortcuts__head"><h2 id="ai-title">Карта с помощью ИИ</h2><button type="button" class="icon-button" data-close-dialog aria-label="Закрыть">×</button></div>
     <div class="support__body">
-      <p>ИИ-ассистент может собрать черновик карты за вас: отметить регионы и города из таблицы или письма, раскрасить регионы по числам. Скопируйте инструкцию, вставьте её в чат и допишите задачу. Ассистент ответит ссылкой — откройте её, и карта соберётся здесь, дальше всё правится как обычно.</p>
+      <p>Черновик карты может собрать ваш собственный ИИ-ассистент — ChatGPT, Claude, Gemini, Алиса или другой. В сам редактор ИИ не встроен: вы общаетесь с ассистентом в его обычном чате, а он присылает вам ссылку, которая открывает готовую карту здесь.</p>
+      <ol class="ai-help__steps">
+        <li>Скопируйте инструкцию ниже.</li>
+        <li>Откройте свой чат с ИИ (например, chatgpt.com) и вставьте её в новое сообщение.</li>
+        <li>В конце допишите задачу своими словами или приложите таблицу: «Отметь регионы, где у нас офисы, и раскрась по выручке».</li>
+        <li>Откройте ссылку, которую пришлёт ассистент, — карта соберётся здесь, дальше правьте как обычно.</li>
+      </ol>
+      <p class="ai-help__note">Доступ к вашему аккаунту или файлам ассистенту не нужен: всё, что нужно для карты, он передаёт прямо в ссылке.</p>
       <textarea class="ai-help__prompt" id="ai-prompt" readonly rows="9" aria-label="Инструкция для ИИ-ассистента">Помоги собрать карту в редакторе map.kachkovenko.com. Ответь ссылкой, которую я открою в браузере и доработаю вручную:
 https://map.kachkovenko.com/#regions=…&amp;cities=…
 
