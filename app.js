@@ -494,12 +494,31 @@
     order.hidden = state.routeMode !== "chain";
     order.innerHTML = selected.slice(0, 150).map((c, i) => `<li><span>${i + 1}. ${escapeHtml(c.name)}</span><button type="button" data-id="${escapeHtml(c.id)}" data-route-move="-1" aria-label="${escapeHtml(c.name)}: выше" ${i === 0 ? "disabled" : ""}>↑</button><button type="button" data-id="${escapeHtml(c.id)}" data-route-move="1" aria-label="${escapeHtml(c.name)}: ниже" ${i === Math.min(selected.length, 150) - 1 ? "disabled" : ""}>↓</button></li>`).join("");
     document.getElementById("route-hint").textContent = selected.length < 2 ? "Отметьте минимум два города в библиотеке." : selected.length > 150 ? "Связи показаны для первых 150 отмеченных городов." : state.routeMode === "chain" ? "Порядок, в котором отмечены города. Стрелками можно изменить маршрут." : "Связи между отмеченными городами. Схема сохраняется в JSON.";
-    // Without two marked cities there is nothing to connect: the section says so and its controls rest.
+    // Without two marked cities there is nothing to connect: the section still opens, says why, and its controls rest.
     const tooFew = selected.length < 2;
     const section = document.querySelector('.control-section[data-section="routes"]');
     section.classList.toggle("is-disabled", tooFew);
-    document.getElementById("routes-empty-hint").hidden = !tooFew;
-    section.querySelectorAll(".section-body select, #route-shuffle").forEach(el => { el.disabled = tooFew; });
+    const routesHint = document.getElementById("routes-empty-hint");
+    routesHint.hidden = !tooFew;
+    routesHint.textContent = selected.length === 1
+      ? "Отмечен один город. Отметьте ещё хотя бы один во вкладке «Города», чтобы соединить их линиями."
+      : "Отметьте хотя бы два города во вкладке «Города», чтобы соединить их линиями.";
+    setControlsEnabled(section.querySelector(".section-body"), !tooFew, ".route-order button");
+    // City labels and markers need at least one marked city; the region settings next to them stay available.
+    const noCities = !selected.length;
+    document.getElementById("city-controls").classList.toggle("is-disabled", noCities);
+    document.getElementById("city-controls-hint").hidden = !noCities;
+    setControlsEnabled(document.getElementById("city-controls"), !noCities);
+  }
+
+  // Disables (or re-enables) every control inside a block. `keep` names controls whose own enabled state is managed
+  // elsewhere (the chain's up/down buttons) and must not be switched back on wholesale.
+  function setControlsEnabled(block, enabled, keep) {
+    block.querySelectorAll("input, select, button, output[tabindex]").forEach(el => {
+      if (keep && el.matches(keep)) { if (!enabled) el.disabled = true; return; }
+      if (el.tagName === "OUTPUT") { el.tabIndex = enabled ? 0 : -1; el.setAttribute("aria-disabled", String(!enabled)); return; }
+      el.disabled = !enabled;
+    });
   }
 
   function renderRoutes() {

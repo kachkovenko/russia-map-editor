@@ -323,6 +323,12 @@ kbd { padding: 2px 6px; color: var(--muted); border: 1px solid var(--line); bord
 .section-body__inner { min-height: 0; overflow: hidden; padding: 0 24px 22px; }
 .control-section.is-collapsed .section-body__inner { padding-bottom: 0; visibility: hidden; transition: visibility 0s .2s, padding .2s; }
 .control-section.is-disabled .section-body__inner > :not(.section-hint) { opacity: .48; }
+/* A block inside a section that waits for something (city settings without marked cities): dimmed, not hidden. */
+.control-group.is-disabled { opacity: .48; }
+.control-group.is-disabled .range-row output { pointer-events: none; }
+.group-hint { margin: 0 0 6px; }
+.shape-picker button:disabled, .segmented button:disabled { cursor: default; }
+.shape-picker button:disabled:hover, .segmented button:disabled:hover { color: inherit; }
 .section-hint { margin: 0 0 8px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; scroll-behavior: auto !important; } }
 .switch-row, .color-row, .select-row, .shape-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 44px; color: var(--text-soft); font-size: 12px; }

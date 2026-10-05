@@ -374,6 +374,12 @@
                   </optgroup>
                 </select>
               </label>
+              <label class="switch-row"><span>Контур текста</span><input class="switch" id="label-halo" type="checkbox" checked></label>
+              <div class="sub-options" id="halo-options">
+                <label class="range-row"><span>Толщина контура <output id="label-halo-width-value">1,5 px</output></span><span class="range-track" style="--ticks: 7"><input id="label-halo-width" type="range" min="0.5" max="4" step="0.5" value="1.5"></span></label>
+                <label class="color-row"><span>Цвет контура</span><span class="swatch"><input id="label-halo-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="label-halo-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код контура текста" spellcheck="false"></span></label>
+              </div>
+              <h3 class="control-subheading">Регионы</h3>
               <label class="switch-row"><span>Названия регионов</span><input class="switch" id="region-labels-enabled" type="checkbox"></label>
               <div class="sub-options" id="region-label-options" hidden>
                 <div class="segmented segmented--sub" id="region-labels-mode">
@@ -383,32 +389,31 @@
                 <label class="switch-row"><span>Разреженные капители</span><input class="switch" id="region-labels-caps" type="checkbox"></label>
                 <label class="range-row"><span>Размер названий <output id="region-font-size-value">11 px</output></span><span class="range-track" style="--ticks: 20"><input id="region-font-size" type="range" min="8" max="28" value="11"></span></label>
               </div>
-              <label class="switch-row"><span>Подписи городов</span><input class="switch" id="city-labels-enabled" type="checkbox" checked></label>
-              <div class="sub-options" id="city-label-options">
-                <label class="color-row"><span>Цвет текста</span><span class="swatch"><input id="city-label-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="city-label-color" value="#171717" maxlength="7" aria-label="HEX-код текста подписей городов" spellcheck="false"></span></label>
-                <label class="range-row"><span>Размер подписей <output id="city-font-size-value">12 px</output></span><span class="range-track" style="--ticks: 20"><input id="city-font-size" type="range" min="8" max="28" value="12"></span></label>
-                <label class="switch-row"><span>Линии выноски</span><input class="switch" id="leader-lines" type="checkbox" checked></label>
-                <label class="color-row" id="leader-color-control"><span>Цвет выноски</span><span class="swatch"><input id="leader-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="leader-color" value="#171717" maxlength="7" aria-label="HEX-код линии выноски" spellcheck="false"></span></label>
-              </div>
-              <label class="switch-row"><span>Контур текста</span><input class="switch" id="label-halo" type="checkbox" checked></label>
-              <div class="sub-options" id="halo-options">
-                <label class="range-row"><span>Толщина контура <output id="label-halo-width-value">1,5 px</output></span><span class="range-track" style="--ticks: 7"><input id="label-halo-width" type="range" min="0.5" max="4" step="0.5" value="1.5"></span></label>
-                <label class="color-row"><span>Цвет контура</span><span class="swatch"><input id="label-halo-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="label-halo-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код контура текста" spellcheck="false"></span></label>
-              </div>
-              <label class="color-row"><span>Маркеры городов</span><span class="swatch"><input id="marker-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="marker-color" value="#171717" maxlength="7" aria-label="HEX-код маркеров" spellcheck="false"></span></label>
-              <div class="shape-row" id="marker-shape-row">
-                <span>Форма маркера</span>
-                <div class="shape-picker" role="group" aria-label="Форма маркера">
-                  <button type="button" class="is-active" data-marker-shape="circle" title="Круг" aria-label="Круг"><svg viewBox="-8 -8 16 16" aria-hidden="true"><circle r="5"></circle></svg></button>
-                  <button type="button" data-marker-shape="square" title="Квадрат" aria-label="Квадрат"><svg viewBox="-8 -8 16 16" aria-hidden="true"><rect x="-4.5" y="-4.5" width="9" height="9"></rect></svg></button>
-                  <button type="button" data-marker-shape="diamond" title="Ромб" aria-label="Ромб"><svg viewBox="-8 -8 16 16" aria-hidden="true"><path d="M0,-6L6,0L0,6L-6,0Z"></path></svg></button>
-                  <button type="button" data-marker-shape="pin" title="Пин" aria-label="Пин"><svg viewBox="-8 -10 16 16" aria-hidden="true"><path d="M0,4L-3.2,0A4,4 0 1 1 3.2,0Z"></path><circle cy="-2.4" r="1.4" fill="#fff"></circle></svg></button>
+              <h3 class="control-subheading">Города</h3>
+              <p class="microcopy group-hint" id="city-controls-hint" hidden>Отметьте хотя бы один город во вкладке «Города» слева — тогда здесь можно будет настроить подписи и маркеры.</p>
+              <div class="control-group" id="city-controls">
+                <label class="switch-row"><span>Подписи городов</span><input class="switch" id="city-labels-enabled" type="checkbox" checked></label>
+                <div class="sub-options" id="city-label-options">
+                  <label class="color-row"><span>Цвет текста</span><span class="swatch"><input id="city-label-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="city-label-color" value="#171717" maxlength="7" aria-label="HEX-код текста подписей городов" spellcheck="false"></span></label>
+                  <label class="range-row"><span>Размер подписей <output id="city-font-size-value">12 px</output></span><span class="range-track" style="--ticks: 20"><input id="city-font-size" type="range" min="8" max="28" value="12"></span></label>
+                  <label class="switch-row"><span>Линии выноски</span><input class="switch" id="leader-lines" type="checkbox" checked></label>
+                  <label class="color-row" id="leader-color-control"><span>Цвет выноски</span><span class="swatch"><input id="leader-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="leader-color" value="#171717" maxlength="7" aria-label="HEX-код линии выноски" spellcheck="false"></span></label>
                 </div>
-              </div>
-              <label class="range-row" id="marker-size-row"><span>Размер маркера <output id="marker-size-value">6</output></span><span class="range-track" style="--ticks: 9"><input id="marker-size" type="range" min="3" max="12" value="6"></span></label>
-              <label class="switch-row" id="marker-outline-row"><span>Контур маркера</span><input class="switch" id="marker-outline" type="checkbox" checked></label>
-              <div class="sub-options" id="marker-outline-options">
-                <label class="color-row"><span>Цвет контура</span><span class="swatch"><input id="marker-outline-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="marker-outline-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код контура маркера" spellcheck="false"></span></label>
+                <label class="color-row"><span>Цвет маркеров</span><span class="swatch"><input id="marker-color" type="color" value="#171717"><input class="hex-input" data-color-text-for="marker-color" value="#171717" maxlength="7" aria-label="HEX-код маркеров" spellcheck="false"></span></label>
+                <div class="shape-row" id="marker-shape-row">
+                  <span>Форма маркера</span>
+                  <div class="shape-picker" role="group" aria-label="Форма маркера">
+                    <button type="button" class="is-active" data-marker-shape="circle" title="Круг" aria-label="Круг"><svg viewBox="-8 -8 16 16" aria-hidden="true"><circle r="5"></circle></svg></button>
+                    <button type="button" data-marker-shape="square" title="Квадрат" aria-label="Квадрат"><svg viewBox="-8 -8 16 16" aria-hidden="true"><rect x="-4.5" y="-4.5" width="9" height="9"></rect></svg></button>
+                    <button type="button" data-marker-shape="diamond" title="Ромб" aria-label="Ромб"><svg viewBox="-8 -8 16 16" aria-hidden="true"><path d="M0,-6L6,0L0,6L-6,0Z"></path></svg></button>
+                    <button type="button" data-marker-shape="pin" title="Пин" aria-label="Пин"><svg viewBox="-8 -10 16 16" aria-hidden="true"><path d="M0,4L-3.2,0A4,4 0 1 1 3.2,0Z"></path><circle cy="-2.4" r="1.4" fill="#fff"></circle></svg></button>
+                  </div>
+                </div>
+                <label class="range-row" id="marker-size-row"><span>Размер маркера <output id="marker-size-value">6</output></span><span class="range-track" style="--ticks: 9"><input id="marker-size" type="range" min="3" max="12" value="6"></span></label>
+                <label class="switch-row" id="marker-outline-row"><span>Контур маркера</span><input class="switch" id="marker-outline" type="checkbox" checked></label>
+                <div class="sub-options" id="marker-outline-options">
+                  <label class="color-row"><span>Цвет контура</span><span class="swatch"><input id="marker-outline-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="marker-outline-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код контура маркера" spellcheck="false"></span></label>
+                </div>
               </div>
             </div>
           </div>
