@@ -325,6 +325,7 @@ kbd { padding: 2px 6px; color: var(--muted); border: 1px solid var(--line); bord
 .control-section.is-disabled .section-body__inner > :not(.section-hint) { opacity: .48; }
 /* A block inside a section that waits for something (city settings without marked cities): dimmed, not hidden. */
 .control-group.is-disabled { opacity: .48; }
+.control-group.is-disabled .control-group.is-disabled { opacity: 1; }
 .control-group.is-disabled .range-row output { pointer-events: none; }
 .group-hint { margin: 0 0 6px; }
 .shape-picker button:disabled, .segmented button:disabled { cursor: default; }

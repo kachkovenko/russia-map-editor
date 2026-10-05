@@ -511,6 +511,29 @@
     setControlsEnabled(document.getElementById("city-controls"), !noCities);
   }
 
+  // Font, pill and text outline only matter while the map shows some text: a region name or a city label.
+  function updateTextControls() {
+    const cityText = state.cityLabels && cities.some(city => state.selectedCities.has(city.id) && city.point);
+    const hasText = shownRegionLabels.size > 0 || cityText;
+    const group = document.getElementById("text-controls");
+    if (group.classList.contains("is-disabled") !== !hasText) {
+      group.classList.toggle("is-disabled", !hasText);
+      document.getElementById("text-controls-hint").hidden = hasText;
+      setControlsEnabled(group, hasText);
+    }
+    updateHaloControls();
+  }
+
+  // The text outline is drawn only on plain labels; on a pill it has no effect, so it rests while the pill is on.
+  function updateHaloControls() {
+    const halo = document.getElementById("halo-controls");
+    const pill = state.labelStyle === "pill";
+    const active = !pill && !document.getElementById("text-controls").classList.contains("is-disabled");
+    halo.classList.toggle("is-disabled", pill);
+    halo.title = pill ? "На подложке контур текста не нужен — выключите подложку, чтобы настроить его" : "";
+    setControlsEnabled(halo, active);
+  }
+
   // Disables (or re-enables) every control inside a block. `keep` names controls whose own enabled state is managed
   // elsewhere (the chain's up/down buttons) and must not be switched back on wholesale.
   function setControlsEnabled(block, enabled, keep) {
@@ -686,9 +709,12 @@
     d3.select("#region-label-backgrounds").selectAll("rect")
       .data(state.labelStyle === "pill" ? features.filter(d => shownRegionLabels.has(d.properties.id)) : [], d => d.properties.id)
       .join("rect").attr("class", "region-label-background")
-      .attr("x", d => d.centroid[0] - d.labelWidth / 2 - 8).attr("y", d => d.centroid[1] - state.regionFontSize * .75 - 5)
-      .attr("width", d => d.labelWidth + 16).attr("height", state.regionFontSize + 10).attr("rx", (state.regionFontSize + 10) / 2)
+      .each(function (d) {
+        const r = labelRect(d.centroid, { dx: 0, dy: 0, anchor: "middle" }, d.labelWidth, state.regionFontSize, state.regionLabelsCaps);
+        d3.select(this).attr("x", r.x1).attr("y", r.y1).attr("width", r.x2 - r.x1).attr("height", r.y2 - r.y1).attr("rx", (r.y2 - r.y1) / 2);
+      })
       .attr("fill", state.labelBackground).attr("fill-opacity", .95);
+    updateTextControls();
     renderRoutes();
     renderGlobeLight();
 
@@ -1025,7 +1051,7 @@
     labelRects = occupied;
     const shown = new Set();
     const fontSize = state.regionFontSize;
-    const rectFor = d => ({ ...labelRect(d.centroid, { dx: 0, dy: 0, anchor: "middle" }, d.labelWidth, fontSize), kind: "label" });
+    const rectFor = d => ({ ...labelRect(d.centroid, { dx: 0, dy: 0, anchor: "middle" }, d.labelWidth, fontSize, state.regionLabelsCaps), kind: "label" });
     // A federal city whose marker is already labelled (Москва, Санкт-Петербург, Севастополь) needs no region label on top.
     const labelledCities = new Set(state.cityLabels ? cities.filter(c => state.selectedCities.has(c.id) && c.point).map(c => normalize(c.name)) : []);
     const redundant = d => labelledCities.has(normalize(shortRegionName(d.properties.name)));
@@ -1101,7 +1127,8 @@
   function layoutCityLabels(occupied) {
     const fontSize = state.cityFontSize;
     const geo = markerGeometry();
-    const gap = geo.reach + (state.labelStyle === "pill" ? 13 : 4);
+    // On a pill the text starts its padding away from the capsule's edge, so it sits that much further from the marker.
+    const gap = geo.reach + (state.labelStyle === "pill" ? pillSize(fontSize).padX + 4 : 4);
     const visible = cities.filter(city => state.selectedCities.has(city.id) && city.point);
     visible.forEach(city => occupied.push({
       x1: city.point[0] + geo.box[0], y1: city.point[1] + geo.box[1], x2: city.point[0] + geo.box[2], y2: city.point[1] + geo.box[3], kind: "marker"
@@ -1184,12 +1211,35 @@
     return { x1: geo.cx + ux * geo.reach, y1: geo.cy + uy * geo.reach, x2: nx - ux * 2, y2: ny - uy * 2 };
   }
 
-  function labelRect(point, placement, w, fontSize) {
+  // The box a label takes. Plain text: its line box (ascent .75, descent .25 of the size). On a pill: a capsule whose
+  // middle is the middle of the lowercase letters (of the capitals for spaced caps), measured in the label font, with
+  // room at the rounded ends so the text never touches them. `w` is the text's advance width.
+  function labelRect(point, placement, w, fontSize, caps = false) {
     const bx = point[0] + placement.dx;
     const by = point[1] + placement.dy;
     const x1 = placement.anchor === "start" ? bx : placement.anchor === "end" ? bx - w : bx - w / 2;
-    const px = state.labelStyle === "pill" ? 8 : 0, py = state.labelStyle === "pill" ? 5 : 0;
-    return { x1: x1 - px, y1: by - fontSize * .75 - py, x2: x1 + w + px, y2: by + fontSize * .25 + py };
+    if (state.labelStyle !== "pill") return { x1, y1: by - fontSize * .75, x2: x1 + w, y2: by + fontSize * .25 };
+    // Letter-spacing is also added after the last letter; that trailing space carries no ink.
+    const ink = caps ? w - fontSize * CAPS_TRACKING : w;
+    const { padX, height } = pillSize(fontSize);
+    const middle = by - fontSize * glyphMiddle(caps);
+    return { x1: x1 - padX, y1: middle - height / 2, x2: x1 + ink + padX, y2: middle + height / 2 };
+  }
+
+  // Capsule proportions: 1.6 × the font size tall, 0.7 × the size of air before and after the text.
+  function pillSize(fontSize) { return { height: fontSize * 1.6, padX: fontSize * .7 }; }
+
+  // Half the height of lowercase letters (capitals with `caps`) as a share of the font size, measured in the label font.
+  function glyphMiddle(caps) {
+    const key = `middle|${caps}`;
+    let value = measureCache.get(key);
+    if (value === undefined) {
+      measureContext.font = `bold 100px ${mapFont()}`;
+      const ascent = measureContext.measureText(caps ? "H" : "x").actualBoundingBoxAscent;
+      value = Number.isFinite(ascent) && ascent > 0 ? ascent / 200 : caps ? .36 : .27;
+      measureCache.set(key, value);
+    }
+    return value;
   }
 
   function intersects(a, b) { return a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1; }
@@ -1757,7 +1807,11 @@
     bindRange("light-angle","lightAngle","light-angle-value",v=>`${v}°`,Number);
     bindRange("lens-lon","lensLon","lens-lon-value",v=>`${v}°`,Number,true);
     bindRange("lens-lat","lensLat","lens-lat-value",v=>`${v}°`,Number,true);
-    [["label-style", "labelStyle"], ["route-mode", "routeMode"], ["route-style", "routeStyle"], ["route-hub", "routeHub"]].forEach(([id, key]) => {
+    document.getElementById("label-pill").addEventListener("change", event => {
+      state.labelStyle = event.target.checked ? "pill" : "plain";
+      updateLabelModeControls(); restyle(); saveState();
+    });
+    [["route-mode", "routeMode"], ["route-style", "routeStyle"], ["route-hub", "routeHub"]].forEach(([id, key]) => {
       document.getElementById(id).addEventListener("change", event => { state[key] = event.target.value; updateRouteControls(); updateLabelModeControls(); restyle(); saveState(); });
     });
     bindColor("label-background", "labelBackground");
@@ -2495,6 +2549,7 @@
 
   function updateLabelModeControls() {
     document.getElementById("label-pill-options").hidden = state.labelStyle !== "pill";
+    updateHaloControls();
     document.getElementById("borders-enabled").checked = bordersOn();
     document.getElementById("border-controls").hidden = !bordersOn();
     document.getElementById("country-outline-options").hidden = !state.countryOutline;
@@ -2532,7 +2587,7 @@
   function syncControls() {
     const pairs = {
       "globe-surface-enabled":state.globeSurface,"ocean-color":state.oceanColor,"globe-light-strength":state.globeLight,"globe-gloss-strength":state.globeGloss,"light-angle":state.lightAngle,"lens-lon":state.lensLon,"lens-lat":state.lensLat,
-      "label-style": state.labelStyle, "label-background": state.labelBackground, "route-mode": state.routeMode, "route-style": state.routeStyle,
+      "label-pill": state.labelStyle === "pill", "label-background": state.labelBackground, "route-mode": state.routeMode, "route-style": state.routeStyle,
       "route-color": state.routeColor, "route-width": state.routeWidth, "route-bend": state.routeBend,
       "dot-pitch": state.dotPitch, "dot-size": state.dotSize,
       "fill-start": state.fillStart, "gradient-type": state.gradientType,

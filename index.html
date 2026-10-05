@@ -354,30 +354,35 @@
           <button class="section-toggle" type="button" aria-expanded="true" aria-controls="section-labels"><span>Подписи и маркеры</span><span class="section-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
           <div class="section-body" id="section-labels">
             <div class="section-body__inner">
-              <label class="select-row"><span>Оформление</span><select id="label-style"><option value="plain">Текст</option><option value="pill">На подложке</option></select></label>
-              <div id="label-pill-options" hidden>
-                <label class="color-row"><span>Цвет подложки</span><span class="swatch"><input id="label-background" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="label-background" value="#FFFFFF" maxlength="7" aria-label="HEX-код подложки подписи" spellcheck="false"></span></label>
-              </div>
-              <label class="select-row"><span>Шрифт подписей</span>
-                <select id="label-font">
-                  <optgroup label="Встроенные">
-                    <option value="inter">Inter</option>
-                    <option value="golos-text">Golos Text</option>
-                    <option value="montserrat">Montserrat</option>
-                    <option value="pt-sans">PT Sans</option>
-                    <option value="pt-serif">PT Serif</option>
-                    <option value="unbounded">Unbounded</option>
-                  </optgroup>
-                  <optgroup label="Системные">
-                    <option value="arial">Arial</option>
-                    <option value="georgia">Georgia</option>
-                  </optgroup>
-                </select>
-              </label>
-              <label class="switch-row"><span>Контур текста</span><input class="switch" id="label-halo" type="checkbox" checked></label>
-              <div class="sub-options" id="halo-options">
-                <label class="range-row"><span>Толщина контура <output id="label-halo-width-value">1,5 px</output></span><span class="range-track" style="--ticks: 7"><input id="label-halo-width" type="range" min="0.5" max="4" step="0.5" value="1.5"></span></label>
-                <label class="color-row"><span>Цвет контура</span><span class="swatch"><input id="label-halo-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="label-halo-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код контура текста" spellcheck="false"></span></label>
+              <p class="microcopy group-hint" id="text-controls-hint" hidden>На карте пока нет подписей. Включите названия регионов или отметьте города — тогда здесь можно будет настроить шрифт, подложку и контур текста.</p>
+              <div class="control-group" id="text-controls">
+                <label class="select-row"><span>Шрифт подписей</span>
+                  <select id="label-font">
+                    <optgroup label="Встроенные">
+                      <option value="inter">Inter</option>
+                      <option value="golos-text">Golos Text</option>
+                      <option value="montserrat">Montserrat</option>
+                      <option value="pt-sans">PT Sans</option>
+                      <option value="pt-serif">PT Serif</option>
+                      <option value="unbounded">Unbounded</option>
+                    </optgroup>
+                    <optgroup label="Системные">
+                      <option value="arial">Arial</option>
+                      <option value="georgia">Georgia</option>
+                    </optgroup>
+                  </select>
+                </label>
+                <label class="switch-row"><span>Подложка</span><input class="switch" id="label-pill" type="checkbox"></label>
+                <div class="sub-options" id="label-pill-options" hidden>
+                  <label class="color-row"><span>Цвет подложки</span><span class="swatch"><input id="label-background" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="label-background" value="#FFFFFF" maxlength="7" aria-label="HEX-код подложки подписи" spellcheck="false"></span></label>
+                </div>
+                <div class="control-group" id="halo-controls" title="">
+                  <label class="switch-row"><span>Контур текста</span><input class="switch" id="label-halo" type="checkbox" checked></label>
+                  <div class="sub-options" id="halo-options">
+                    <label class="range-row"><span>Толщина контура <output id="label-halo-width-value">1,5 px</output></span><span class="range-track" style="--ticks: 7"><input id="label-halo-width" type="range" min="0.5" max="4" step="0.5" value="1.5"></span></label>
+                    <label class="color-row"><span>Цвет контура</span><span class="swatch"><input id="label-halo-color" type="color" value="#ffffff"><input class="hex-input" data-color-text-for="label-halo-color" value="#FFFFFF" maxlength="7" aria-label="HEX-код контура текста" spellcheck="false"></span></label>
+                  </div>
+                </div>
               </div>
               <h3 class="control-subheading">Регионы</h3>
               <label class="switch-row"><span>Названия регионов</span><input class="switch" id="region-labels-enabled" type="checkbox"></label>
