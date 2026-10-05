@@ -79,7 +79,7 @@ assert.throws(() => open("#p=@@@"), /повреждён/);
 
 // Every example in llms.txt opens without unrecognised names or values.
 const examples = require("node:fs").readFileSync(require("node:path").join(__dirname, "../llms.txt"), "utf8")
-  .match(/https:\/\/map\.kachkovenko\.com\/#[^\s`)]+/g).filter(url => !url.includes("…") && !url.includes("#p="));
+  .match(/https:\/\/kachkovenko\.github\.io\/russia-map-editor\/#[^\s`)]+/g).filter(url => !url.includes("…") && !url.includes("#p="));
 assert.ok(examples.length >= 5, "llms.txt has examples");
 const known = new Set(["regionLabels", "regionLabelsMode", "frame"]);
 examples.forEach(url => {

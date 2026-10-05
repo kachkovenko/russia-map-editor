@@ -1,12 +1,12 @@
-# Редактор карты России и мира — map.kachkovenko.com
+# Редактор карты России и мира — kachkovenko.github.io/russia-map-editor
 
 > Бесплатный браузерный редактор карт для презентаций: регионы России (89 субъектов) или страны мира, города, цвета, проекции; экспорт в PNG, SVG и редактируемый PPTX. ИИ-ассистент может передать пользователю готовый черновик карты одной ссылкой — пользователь откроет её, доведёт оформление вручную и экспортирует.
 >
-> For AI assistants: build a URL like https://map.kachkovenko.com/#regions=Татарстан,Москва&cities=Казань and give it to the user. Write region, country and city names in Russian (cities have Russian names only); regions also accept the English ids listed below, countries accept ISO 3166-1 alpha-3 codes (DEU, FRA). Nothing is sent to a server: the parameters live in the URL fragment and are applied in the user's browser.
+> For AI assistants: build a URL like https://kachkovenko.github.io/russia-map-editor/#regions=Татарстан,Москва&cities=Казань and give it to the user. Write region, country and city names in Russian (cities have Russian names only); regions also accept the English ids listed below, countries accept ISO 3166-1 alpha-3 codes (DEU, FRA). Nothing is sent to a server: the parameters live in the URL fragment and are applied in the user's browser.
 
 ## Как это работает
 
-1. Соберите ссылку: `https://map.kachkovenko.com/#` + параметры через `&`.
+1. Соберите ссылку: `https://kachkovenko.github.io/russia-map-editor/#` + параметры через `&`.
 2. Отдайте ссылку пользователю. Он открывает её — карта собирается сразу. Прежняя карта пользователя заменяется, но её можно вернуть кнопкой «Отменить» (⌘Z).
 3. Если какие-то названия не распознаны, редактор покажет их в уведомлении, остальное откроется.
 
@@ -46,11 +46,11 @@
 
 ## Примеры
 
-- Филиалы компании: https://map.kachkovenko.com/#regions=Москва,Санкт-Петербург,Татарстан,Свердловская,Новосибирская&cities=Москва,Санкт-Петербург,Казань,Екатеринбург,Новосибирск
-- Население по регионам (хороплет): https://map.kachkovenko.com/#values=Москва:13.1;Московская:8.6;Краснодарский:5.8;Санкт-Петербург:5.6;Свердловская:4.2&valueColors=dbe7f5,1d3557&regionLabels=1&regionLabelsMode=selected
-- Маршрут поездки: https://map.kachkovenko.com/#cities=Москва,Нижний+Новгород,Казань,Екатеринбург&route=chain&theme=dark
-- Офисы в Европе: https://map.kachkovenko.com/#scope=world&regions=DEU,FRA,ITA,ESP&cities=Берлин,Париж,Рим,Мадрид&projection=globe
-- Федеральный округ одним цветом: https://map.kachkovenko.com/#regions=ПФО&selectedColor=2a9d8f
+- Филиалы компании: https://kachkovenko.github.io/russia-map-editor/#regions=Москва,Санкт-Петербург,Татарстан,Свердловская,Новосибирская&cities=Москва,Санкт-Петербург,Казань,Екатеринбург,Новосибирск
+- Население по регионам (хороплет): https://kachkovenko.github.io/russia-map-editor/#values=Москва:13.1;Московская:8.6;Краснодарский:5.8;Санкт-Петербург:5.6;Свердловская:4.2&valueColors=dbe7f5,1d3557&regionLabels=1&regionLabelsMode=selected
+- Маршрут поездки: https://kachkovenko.github.io/russia-map-editor/#cities=Москва,Нижний+Новгород,Казань,Екатеринбург&route=chain&theme=dark
+- Офисы в Европе: https://kachkovenko.github.io/russia-map-editor/#scope=world&regions=DEU,FRA,ITA,ESP&cities=Берлин,Париж,Рим,Мадрид&projection=globe
+- Федеральный округ одним цветом: https://kachkovenko.github.io/russia-map-editor/#regions=ПФО&selectedColor=2a9d8f
 
 ## Точная карта целиком
 
@@ -75,5 +75,5 @@
 
 ## Ссылки
 
-- Редактор: https://map.kachkovenko.com/
+- Редактор: https://kachkovenko.github.io/russia-map-editor/
 - Исходный код и лицензия: https://github.com/kachkovenko/russia-map-editor

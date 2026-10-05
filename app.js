@@ -8,7 +8,7 @@
   const PROJECT_FORMAT = "map.kachkovenko.kontur";
   // Provenance written into every export (SVG metadata, PNG text chunks, PPTX properties): invisible in the picture,
   // readable in file inspectors. The map belongs to its author; this only records where it was made.
-  const SITE_URL = "https://map.kachkovenko.com";
+  const SITE_URL = "https://kachkovenko.github.io/russia-map-editor";
   const PROVENANCE = `Создано в редакторе карты России · ${SITE_URL}`;
   const PROJECT_VERSION = 2;
   const MAX_PROJECT_BYTES = 256 * 1024;
@@ -3369,7 +3369,7 @@
     pptx.author = `Редактор карты России · ${SITE_URL}`;
     pptx.subject = state.mapScope === "world" ? "Карта мира" : "Карта России";
     pptx.title = pptx.subject;
-    pptx.company = "map.kachkovenko.com";
+    pptx.company = "kachkovenko.github.io/russia-map-editor";
     pptx.lang = "ru-RU";
     pptx.layout = state.ratio === "4:3" ? "LAYOUT_4X3" : "LAYOUT_WIDE";
     const slide = pptx.addSlide();
@@ -3386,8 +3386,8 @@
     slide.addImage({ data: dataUri, x, y, w, h, altText: state.mapScope === "world" ? "Карта мира" : "Карта России" });
     addEditableLabels(slide, vector, { x, y, w, h, slideW, slideH });
     slide.addNotes(state.mapScope === "world"
-      ? "Создано в map.kachkovenko.com. Страны и территории: GeoJSON Atlas / Natural Earth (CC0 / public domain). Границы РФ согласованы с российским режимом редактора. Принадлежность и границы части территорий международно оспариваются. Карта обзорная, не юридическая."
-      : "Создано в редакторе карты России (map.kachkovenko.com). Состав субъектов — по статье 65 Конституции РФ. Часть показанных границ международно оспаривается.");
+      ? "Создано в kachkovenko.github.io/russia-map-editor. Страны и территории: GeoJSON Atlas / Natural Earth (CC0 / public domain). Границы РФ согласованы с российским режимом редактора. Принадлежность и границы части территорий международно оспариваются. Карта обзорная, не юридическая."
+      : "Создано в редакторе карты России (kachkovenko.github.io/russia-map-editor). Состав субъектов — по статье 65 Конституции РФ. Часть показанных границ международно оспаривается.");
     const [pptxBlob, pngFallback] = await Promise.all([
       pptx.write({ outputType: "blob", compression: true }),
       renderPng(1, vector)

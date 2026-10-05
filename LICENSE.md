@@ -6,7 +6,7 @@ Copyright (c) 2026 Качковенко · https://kachkovenko.com
 
 ## 1. Термины
 
-- **Сервис** — веб-приложение «Редактор карты России», размещённое по адресу https://map.kachkovenko.com.
+- **Сервис** — веб-приложение «Редактор карты России», размещённое по адресу https://kachkovenko.github.io/russia-map-editor.
 - **Исходный код** — материалы этого репозитория: HTML, CSS и JavaScript приложения, скрипты сборки, документация, подготовленные файлы данных, оформление интерфейса и прочие файлы, кроме сторонних компонентов (раздел 4).
 - **Карты** — изображения, файлы и другие результаты, которые пользователь создаёт с помощью Сервиса: PNG, SVG, PPTX, JSON-проекты, копии в буфере обмена и т. п.
 
@@ -14,7 +14,7 @@ Copyright (c) 2026 Качковенко · https://kachkovenko.com
 
 1. Пользоваться Сервисом может любой, бесплатно, для любых целей, включая коммерческие.
 2. Созданные карты принадлежат тому, кто их создал. Их можно использовать, изменять, публиковать, продавать, включать в презентации, печатные материалы, сайты и продукты — без ограничений, без указания источника и без уведомления автора Сервиса.
-3. В экспортируемые файлы записываются технические сведения о происхождении (например, «создано в map.kachkovenko.com» в свойствах файла). Они не ограничивают права на карту, и их можно удалить.
+3. В экспортируемые файлы записываются технические сведения о происхождении (например, «создано в kachkovenko.github.io/russia-map-editor» в свойствах файла). Они не ограничивают права на карту, и их можно удалить.
 4. Шрифты, прилагаемые к экспорту, распространяются по своей лицензии — SIL Open Font License 1.1, см. `OFL.txt` в архиве.
 
 ## 3. Исходный код — все права защищены
@@ -46,4 +46,4 @@ Copyright (c) 2026 Качковенко · https://kachkovenko.com
 
 ---
 
-*Summary in English (the Russian text above governs).* The service at https://map.kachkovenko.com and any maps made with it are free to use for any purpose, including commercial use; the maps belong to whoever made them. The source code in this repository is source-available, all rights reserved: viewing, studying and quoting small excerpts are welcome; copying, redistributing, rehosting, rebranding or building derivative products on it requires the author's written permission. Third-party components keep their own licences (see `THIRD_PARTY_NOTICES.md`). Provided as is, without warranty.
+*Summary in English (the Russian text above governs).* The service at https://kachkovenko.github.io/russia-map-editor and any maps made with it are free to use for any purpose, including commercial use; the maps belong to whoever made them. The source code in this repository is source-available, all rights reserved: viewing, studying and quoting small excerpts are welcome; copying, redistributing, rehosting, rebranding or building derivative products on it requires the author's written permission. Third-party components keep their own licences (see `THIRD_PARTY_NOTICES.md`). Provided as is, without warranty.
