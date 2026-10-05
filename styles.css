@@ -303,6 +303,7 @@ kbd { padding: 2px 6px; color: var(--muted); border: 1px solid var(--line); bord
 .confirm__body { padding: 4px 22px 20px; color: var(--text-soft); font-size: 13px; line-height: 1.5; }
 .confirm__body p { margin: 0 0 20px; }
 .confirm__actions { display: flex; justify-content: flex-end; gap: 8px; }
+.confirm__actions--start { justify-content: flex-start; }
 .support__body { padding: 4px 22px 22px; color: var(--text-soft); font-size: 13px; line-height: 1.5; }
 .support__body p { margin: 0 0 16px; }
 .support__link { width: 100%; text-decoration: none; }
