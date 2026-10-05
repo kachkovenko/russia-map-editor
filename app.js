@@ -19,6 +19,8 @@
   const HISTORY_LIMIT = 80;
   const HISTORY_BURST_MS = 450;
   const LABEL_OFFSET_LIMIT = 2000;
+  const MAX_PLACES = 200;
+  const PLACE_NAME_MAX = 60;
   const FEDERAL_DISTRICTS = ["ЦФО", "СЗФО", "ЮФО", "СКФО", "ПФО", "УФО", "СФО", "ДФО"];
   const TYPE_SHORT = {
     "Республика": "Респ.", "Край": "Край", "Область": "Обл.",
@@ -118,7 +120,7 @@
   // whose fill is being edited; `regionColors` holds per-region fills that override the shared highlight colour.
   const state = {
     ...defaults, query: "", selectedRegions: new Set(), selectedCities: new Set(), cityLabelOffsets: {},
-    regionColors: {}, activeRegions: new Set(), mapSelected: false
+    regionColors: {}, activeRegions: new Set(), mapSelected: false, places: []
   };
 
   const svg = d3.select("#map");
@@ -142,6 +144,10 @@
   let topCities = [];
   let regionIds = new Set();
   let cityIds = new Set();
+  // Catalogue cities only; `cityIds` adds the user's own places to them.
+  let baseCityIds = new Set();
+  // «Указать точку на карте»: the place dialog's draft while the next click on the map picks the point.
+  let placePick = null;
   let outline = null;
   let projection = null;
   let path = null;
@@ -243,6 +249,7 @@
     }
     regionIds = new Set(Object.values(datasets).flatMap(s=>s.features.map(d=>d.properties.id)));
     cityIds = new Set(Object.values(datasets).flatMap(s=>s.cities.map(d=>d.id)));
+    baseCityIds = new Set(cityIds);
     bindMapData();
     buildDistrictChips();
     bindSectionToggles();
@@ -1014,16 +1021,21 @@
     cancelAnimationFrame(cursorGeoFrame);
     cursorGeoFrame = requestAnimationFrame(() => {
       const el = document.getElementById("cursor-geo");
-      let text = "";
-      if (clientX != null && projection && projection.invert) {
-        const point = slidePoint(clientX, clientY);
-        const geo = projection.invert(point);
-        const back = geo && isFinite(geo[0]) && isFinite(geo[1]) && Math.abs(geo[1]) <= 90 ? projection(geo) : null;
-        if (back && Math.hypot(back[0] - point[0], back[1] - point[1]) < 1) text = formatGeo(geo);
-      }
+      const geo = clientX != null ? geoAt(clientX, clientY) : null;
+      const text = geo ? formatGeo(geo) : "";
       el.textContent = text;
       document.getElementById("status-bar").hidden = !text;
     });
+  }
+
+  // The point of the map under the cursor, or null off the projection's image (the round trip through invert misses).
+  function geoAt(clientX, clientY) {
+    if (!projection || !projection.invert) return null;
+    const point = slidePoint(clientX, clientY);
+    const geo = projection.invert(point);
+    const back = geo && isFinite(geo[0]) && isFinite(geo[1]) && Math.abs(geo[1]) <= 90 ? projection(geo) : null;
+    if (!back || Math.hypot(back[0] - point[0], back[1] - point[1]) >= 1) return null;
+    return [((geo[0] + 540) % 360) - 180, geo[1]];
   }
 
   function formatGeo([lon, lat]) {
@@ -1511,11 +1523,17 @@
     } else if (state.tab === "regions") {
       sections.push({ kind: "region", items: features });
     } else {
+      const own = cities.filter(city => city.isPlace);
+      sections.push({ kind: "add-place" });
+      if (own.length) sections.push({ kind: "city", title: `Свои места · ${own.length}`, items: own });
       sections.push({ kind: "city", title: "Крупнейшие города", items: topCities });
-      sections.push({ kind: "city", title: "Все города по алфавиту", items: cities });
+      sections.push({ kind: "city", title: "Все города по алфавиту", items: cities.filter(city => !city.isPlace) });
     }
+    // Coordinates typed into the search offer a place at that point, whichever tab is open.
+    const typedPoint = state.query ? parseCoordinates(state.query) : null;
+    if (typedPoint) sections.unshift({ kind: "add-place", point: typedPoint });
 
-    const total = sections.reduce((sum, section) => sum + section.items.length, 0);
+    const total = sections.reduce((sum, section) => sum + (section.items ? section.items.length : 1), 0);
     if (!total) {
       objectList.innerHTML = !query
         ? `<div class="empty-state">Пока ничего не отмечено.<br>Кликните ${state.mapScope === "world" ? "страну" : "регион"} на карте или отметьте в списке.</div>`
@@ -1533,6 +1551,11 @@
   }
 
   function renderSection(section) {
+    if (section.kind === "add-place") {
+      const label = section.point ? `Добавить место: ${formatGeo(section.point)}` : "Добавить своё место";
+      const point = section.point ? ` data-lon="${section.point[0]}" data-lat="${section.point[1]}"` : "";
+      return `<button type="button" class="add-place" data-add-place${point}><span aria-hidden="true">+</span>${escapeHtml(label)}</button>`;
+    }
     const header = section.title ? `<div class="object-group">${escapeHtml(section.title)}</div>` : "";
     const rows = section.items.map(item => section.kind === "region" ? renderRegionItem(item) : renderCityItem(item)).join("");
     return `<div class="object-section">${header}${rows}</div>`;
@@ -1547,16 +1570,20 @@
   }
 
   function renderCityItem(city) {
+    if (city.isPlace) {
+      const edit = `<button type="button" class="object-edit" data-edit-place="${escapeHtml(city.id)}" aria-label="Изменить место «${escapeHtml(city.name)}»" title="Изменить"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13 7 4 4"/></svg></button>`;
+      return renderItem("city", city.id, state.selectedCities.has(city.id), city.name, city.region || formatGeo([city.lon, city.lat]), "", edit);
+    }
     const note = city.isCapital ? `${city.region} · центр` : city.region;
     return renderItem("city", city.id, state.selectedCities.has(city.id), city.name, note, city.fd);
   }
 
-  function renderItem(kind, id, selected, title, subtitle, meta) {
+  function renderItem(kind, id, selected, title, subtitle, meta, extra = "") {
     return `<label class="object-item" data-kind="${kind}" data-object-id="${escapeHtml(id)}">
       <input type="checkbox" ${selected ? "checked" : ""}>
       <span class="object-check"></span>
       <span class="object-copy"><b>${escapeHtml(title)}</b><small>${escapeHtml(subtitle)}</small></span>
-      <span class="object-meta">${escapeHtml(meta)}</span></label>`;
+      ${extra || `<span class="object-meta">${escapeHtml(meta)}</span>`}</label>`;
   }
 
   function buildDistrictChips() {
@@ -1943,6 +1970,7 @@
   }
 
   function bindControls() {
+    bindPlaces();
     document.querySelectorAll("[data-map-scope]").forEach(button=>button.addEventListener("click",()=>{
       if (state.mapScope === button.dataset.mapScope) return;
       if (!datasets[button.dataset.mapScope]) { showToast("Мировой набор данных не загрузился"); return; }
@@ -2027,6 +2055,13 @@
       item.dataset.kind === "region" ? toggleRegion(item.dataset.objectId) : toggleCity(item.dataset.objectId);
     });
     objectList.addEventListener("click", event => {
+      const edit = event.target.closest("[data-edit-place]");
+      if (edit) { event.preventDefault(); openPlaceDialog(edit.dataset.editPlace); return; }
+      const add = event.target.closest("[data-add-place]");
+      if (add) {
+        openPlaceDialog(null, add.dataset.lon ? { lon: +add.dataset.lon, lat: +add.dataset.lat } : null);
+        return;
+      }
       if (!event.target.closest("[data-search-all]")) return;
       state.tab = "regions"; syncTabs(); updateList(); persist();
     });
@@ -2823,6 +2858,7 @@
     state.query = "";
     state.selectedRegions.clear(); state.selectedCities.clear(); state.cityLabelOffsets = {};
     state.regionColors = {}; state.activeRegions.clear(); state.mapSelected = false;
+    applyPlaces([]);
     syncDataset(); syncControls(); updateCanvasSize(); updateList(); updateSelectionBar(); render(); saveState();
     showUndoToast("Настройки сброшены");
   }
@@ -2846,6 +2882,7 @@
       const settings = sanitizeSettings(saved);
       Object.keys(defaults).forEach(key => state[key] = settings[key]);
       enforceStyleRules();
+      applyPlaces(sanitizePlaces(saved.places));
       state.selectedRegions = new Set(sanitizeIds(saved.selectedRegions, regionIds, regionIds.size));
       state.selectedCities = new Set(sanitizeIds(saved.selectedCities, cityIds, cityIds.size));
       state.cityLabelOffsets = sanitizeOffsets(saved.cityLabelOffsets, cityIds);
@@ -2870,11 +2907,14 @@
     if (!link) return;
     clearLink();
     const { project } = link;
+    const places = sanitizePlaces(project.places);
+    const allowed = cityIdsWith(places);
     applyDocument({
       settings: sanitizeSettings(project.settings),
+      places,
       regions: sanitizeIds(project.regions, regionIds, regionIds.size),
-      cities: sanitizeIds(project.cities, cityIds, cityIds.size),
-      labelOffsets: sanitizeOffsets(project.labelOffsets, cityIds),
+      cities: sanitizeIds(project.cities, allowed, allowed.size),
+      labelOffsets: sanitizeOffsets(project.labelOffsets, allowed),
       regionColors: sanitizeColors(project.regionColors, regionIds)
     });
     saveState();
@@ -2943,11 +2983,14 @@
 
   function restoreSnapshot(json) {
     const raw = JSON.parse(json);
+    const places = sanitizePlaces(raw.places);
+    const allowed = cityIdsWith(places);
     applyDocument({
       settings: sanitizeSettings(raw.settings),
+      places,
       regions: sanitizeIds(raw.selection?.regions, regionIds, regionIds.size),
-      cities: sanitizeIds(raw.selection?.cities, cityIds, cityIds.size),
-      labelOffsets: sanitizeOffsets(raw.labelOffsets, cityIds),
+      cities: sanitizeIds(raw.selection?.cities, allowed, allowed.size),
+      labelOffsets: sanitizeOffsets(raw.labelOffsets, allowed),
       regionColors: sanitizeColors(raw.regionColors, regionIds)
     }, { keepView: true });
     persist();
@@ -2966,7 +3009,7 @@
     Object.keys(state.cityLabelOffsets).sort().forEach(id => { labelOffsets[id] = state.cityLabelOffsets[id]; });
     const regionColors = Object.create(null);
     Object.keys(state.regionColors).filter(id => state.selectedRegions.has(id)).sort().forEach(id => { regionColors[id] = state.regionColors[id]; });
-    return {
+    const doc = {
       format: PROJECT_FORMAT,
       version: PROJECT_VERSION,
       savedAt: new Date().toISOString(),
@@ -2979,6 +3022,8 @@
       regionColors,
       labelOffsets
     };
+    if (state.places.length) doc.places = state.places.map(({ id, name, lon, lat }) => ({ id, name, lon, lat }));
+    return doc;
   }
 
   function downloadProject(filename = exportFilename("project.json"), announce = true) {
@@ -3036,11 +3081,14 @@
     if (!isPlainRecord(raw.settings) || !isPlainRecord(raw.selection) || hasBlockedKeys(raw.settings) || hasBlockedKeys(raw.selection)) {
       throw new Error("неверная структура настроек");
     }
+    const places = sanitizePlaces(raw.places, true);
+    const allowed = cityIdsWith(places);
     return {
       settings: sanitizeSettings(raw.settings, true),
+      places,
       regions: sanitizeIds(raw.selection.regions, regionIds, regionIds.size, true),
-      cities: sanitizeIds(raw.selection.cities, cityIds, cityIds.size, true),
-      labelOffsets: sanitizeOffsets(raw.labelOffsets, cityIds, true),
+      cities: sanitizeIds(raw.selection.cities, allowed, allowed.size, true),
+      labelOffsets: sanitizeOffsets(raw.labelOffsets, allowed, true),
       regionColors: sanitizeColors(raw.regionColors, regionIds, true)
     };
   }
@@ -3063,7 +3111,7 @@
         if (valid) value = clamp(value, NUMBER_RANGES[key][0], NUMBER_RANGES[key][1]);
       }
       else if (ENUM_SETTINGS[key]) valid = ENUM_SETTINGS[key].includes(value);
-      else if (key === "routeHub") valid = value === "" || (typeof value === "string" && cityIds.has(value));
+      else if (key === "routeHub") valid = value === "" || (typeof value === "string" && (baseCityIds.has(value) || isPlaceId(value)));
       if (!valid) {
         if (strict) throw new Error(`недопустимое значение настройки «${key}»`);
         return;
@@ -3121,6 +3169,238 @@
     return clean;
   }
 
+  // Own places: points the user adds by coordinates (or by a click on the map) and names. They join every map's city
+  // list, so markers, labels, the callout legend, routes and every export treat them as cities; they are listed first
+  // on the «Города» tab under «Свои места».
+  function applyPlaces(list) {
+    if (JSON.stringify(list) === JSON.stringify(state.places)) return;
+    state.places = list;
+    Object.values(datasets).forEach(set => {
+      set.cities = set.cities.filter(city => !city.isPlace).concat(list.map(place => placeCity(place, set.features)));
+    });
+    cityIds = cityIdsWith(list);
+    if (!boundScope) return;
+    ({ cities } = datasets[boundScope]);
+    bindMapData();
+  }
+
+  function placeCity(place, items) {
+    const p = items.find(item => d3.geoContains(item, [place.lon, place.lat]))?.properties;
+    return {
+      id: place.id, name: place.name, lon: place.lon, lat: place.lat,
+      region: p?.name || "", regionId: p?.id ?? null, fd: p?.fd || "", population: 0, isCapital: false, isPlace: true
+    };
+  }
+
+  function isPlaceId(id) { return /^place-[a-z0-9]{1,24}$/.test(id); }
+  function cityIdsWith(places) { return new Set([...baseCityIds, ...places.map(place => place.id)]); }
+
+  function sanitizePlaces(value, strict = false) {
+    if (value === undefined || value === null) return [];
+    if (!Array.isArray(value) || value.length > MAX_PLACES) {
+      if (strict) throw new Error("неверный список своих мест");
+      return [];
+    }
+    const clean = [];
+    const seen = new Set();
+    for (const place of value) {
+      const ok = isPlainRecord(place) && typeof place.id === "string" && isPlaceId(place.id) && !seen.has(place.id)
+        && typeof place.name === "string" && place.name.trim() && place.name.length <= PLACE_NAME_MAX
+        && typeof place.lon === "number" && Math.abs(place.lon) <= 180 && typeof place.lat === "number" && Math.abs(place.lat) <= 90;
+      if (!ok) {
+        if (strict) throw new Error("неверное своё место");
+        continue;
+      }
+      seen.add(place.id);
+      clean.push({ id: place.id, name: place.name.trim(), lon: place.lon, lat: place.lat });
+    }
+    return clean;
+  }
+
+  // Coordinates the way people paste them: «55.7558, 37.6173», «55,7558 37,6173», «55°45′21″ с. ш. 37°37′04″ в. д.»,
+  // «N 55.75 E 37.61», or a Google Maps / Yandex Maps address. Latitude comes first unless the letters say otherwise.
+  // Returns [lon, lat] or null.
+  function parseCoordinates(text) {
+    const value = String(text || "").trim();
+    if (!value || value.length > 300) return null;
+    const google = value.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+    if (google) return checkedPoint(+google[2], +google[1]);
+    const yandex = value.match(/[?&]ll=(-?\d+(?:\.\d+)?)(?:%2C|,)(-?\d+(?:\.\d+)?)/i);
+    if (yandex) return checkedPoint(+yandex[1], +yandex[2]);
+    const letters = { с: "N", ю: "S", в: "E", з: "W" };
+    const marked = value
+      .replace(/([сюзв])\.?\s*([шд])\.?/gi, (match, side, axis) => {
+        const hemi = letters[side.toLocaleLowerCase("ru")];
+        return (axis.toLocaleLowerCase("ru") === "ш") === (hemi === "N" || hemi === "S") ? ` ${hemi} ` : match;
+      })
+      .replace(/(^|[\s\d°′'’″"”,;])([сюзв])(?=$|[\s\d,;])/gi, (match, before, side) => `${before} ${letters[side.toLocaleLowerCase("ru")]} `);
+    if (!/^[\d\s.,;°º′'’″"”NSEW+-]+$/i.test(marked)) return null;
+    const parts = [];
+    let pending = "";
+    for (const [, hemi, number, mark = ""] of marked.matchAll(/([NSEW])|([+-]?\d+(?:[.,]\d+)?)\s*(''|°|º|′|'|’|″|"|”)?/gi)) {
+      const last = parts[parts.length - 1];
+      if (hemi) {
+        if (last && !last.hemi && !pending) last.hemi = hemi.toUpperCase();
+        else pending = hemi.toUpperCase();
+        continue;
+      }
+      const n = Math.abs(parseFloat(number.replace(",", ".")));
+      const unit = /^[′'’]$/.test(mark) ? "min" : /^(?:''|[″"”])$/.test(mark) ? "sec" : "deg";
+      if (unit === "deg" || !last) {
+        parts.push({ deg: n, min: 0, sec: 0, sign: number.startsWith("-") ? -1 : 1, hemi: pending });
+        pending = "";
+      } else last[unit] = n;
+    }
+    if (parts.length !== 2 || parts.some(part => part.min >= 60 || part.sec >= 60)) return null;
+    let [a, b] = parts.map(part => ({
+      value: part.sign * (part.deg + part.min / 60 + part.sec / 3600) * (part.hemi === "S" || part.hemi === "W" ? -1 : 1),
+      axis: part.hemi === "N" || part.hemi === "S" ? "lat" : part.hemi ? "lon" : ""
+    }));
+    if (a.axis && a.axis === b.axis) return null;
+    if (a.axis === "lon" || b.axis === "lat" || (!a.axis && !b.axis && Math.abs(a.value) > 90 && Math.abs(b.value) <= 90)) [a, b] = [b, a];
+    return checkedPoint(b.value, a.value);
+  }
+
+  function checkedPoint(lon, lat) {
+    return Number.isFinite(lon) && Number.isFinite(lat) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? [lon, lat] : null;
+  }
+
+  function coordinateText([lon, lat]) { return `${+lat.toFixed(5)}, ${+lon.toFixed(5)}`; }
+
+  function bindPlaces() {
+    const dialog = document.getElementById("place-dialog");
+    const name = document.getElementById("place-name");
+    const coords = document.getElementById("place-coords");
+    name.maxLength = PLACE_NAME_MAX;
+    name.addEventListener("input", () => setFieldInvalid(name, false));
+    coords.addEventListener("input", updatePlaceHint);
+    document.getElementById("place-form").addEventListener("submit", event => { event.preventDefault(); savePlace(); });
+    document.getElementById("place-pick").addEventListener("click", startPlacePick);
+    document.getElementById("place-delete").addEventListener("click", () => {
+      const id = dialog.dataset.placeId;
+      dialog.close();
+      deletePlace(id);
+    });
+    // While a point is being picked, a click on the map gives the point instead of marking a region or a city.
+    canvasViewport.addEventListener("click", event => {
+      if (!placePick) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (Date.now() < suppressSelectionUntil) return;
+      const geo = geoAt(event.clientX, event.clientY);
+      if (geo) finishPlacePick(geo);
+    }, true);
+    document.addEventListener("keydown", event => {
+      if (placePick && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); finishPlacePick(null); }
+    }, true);
+  }
+
+  // `draft` reopens the dialog with what was typed before picking a point on the map.
+  function openPlaceDialog(id, point = null, draft = null) {
+    const dialog = document.getElementById("place-dialog");
+    const place = id ? state.places.find(item => item.id === id) : null;
+    const name = document.getElementById("place-name");
+    const coords = document.getElementById("place-coords");
+    dialog.dataset.placeId = place ? place.id : "";
+    document.getElementById("place-title").textContent = place ? "Изменить место" : "Новое место";
+    document.getElementById("place-save").textContent = place ? "Сохранить" : "Добавить на карту";
+    document.getElementById("place-delete").hidden = !place;
+    name.value = draft ? draft.name : place ? place.name : "";
+    coords.value = point ? coordinateText(point) : draft ? draft.coords : place ? coordinateText([place.lon, place.lat]) : "";
+    setFieldInvalid(name, false);
+    updatePlaceHint();
+    openDialog("place-dialog");
+    const target = !name.value ? name : !parseCoordinates(coords.value) ? coords : document.getElementById("place-save");
+    target.focus();
+    if (target === name && point) name.select();
+  }
+
+  function updatePlaceHint() {
+    const coords = document.getElementById("place-coords");
+    const hint = document.getElementById("place-coords-hint");
+    const point = parseCoordinates(coords.value);
+    const typed = coords.value.trim() !== "";
+    setFieldInvalid(coords, typed && !point);
+    hint.classList.toggle("is-invalid", typed && !point);
+    hint.classList.toggle("is-found", !!point);
+    if (point) {
+      const region = placeCity({ lon: point[0], lat: point[1] }, features).region;
+      hint.textContent = `${formatGeo(point)}${region ? ` · ${region}` : ""}`;
+    } else hint.textContent = typed
+      ? "Не получается прочитать координаты. Нужны широта и долгота, например 55.7558, 37.6173"
+      : "Широта и долгота через запятую — например, скопированные в Яндекс Картах или Google Maps.";
+  }
+
+  function setFieldInvalid(field, invalid) {
+    field.classList.toggle("is-invalid", invalid);
+    field.setAttribute("aria-invalid", invalid ? "true" : "false");
+  }
+
+  function savePlace() {
+    const dialog = document.getElementById("place-dialog");
+    const name = document.getElementById("place-name");
+    const coords = document.getElementById("place-coords");
+    const title = name.value.trim().slice(0, PLACE_NAME_MAX);
+    const point = parseCoordinates(coords.value);
+    if (!title) { setFieldInvalid(name, true); name.focus(); return; }
+    if (!point) { updatePlaceHint(); setFieldInvalid(coords, true); coords.focus(); return; }
+    const editing = dialog.dataset.placeId;
+    if (!editing && state.places.length >= MAX_PLACES) { showToast(`Своих мест может быть не больше ${MAX_PLACES}`); return; }
+    const id = editing || `place-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const place = { id, name: title, lon: +point[0].toFixed(6), lat: +point[1].toFixed(6) };
+    const before = state.places.find(item => item.id === id);
+    applyPlaces(editing ? state.places.map(item => item.id === id ? place : item) : [...state.places, place]);
+    if (before && (before.lon !== place.lon || before.lat !== place.lat)) delete state.cityLabelOffsets[id];
+    if (!editing || !state.selectedCities.has(id)) {
+      state.selectedCities.add(id);
+      state.cityLabels = true;
+      document.getElementById("city-labels-enabled").checked = true;
+    }
+    dialog.close();
+    render();
+    afterSelectionChange(id);
+    const city = cities.find(item => item.id === id);
+    const hidden = !city?.projected ? (state.projection === "globe" ? " — сейчас оно на обратной стороне глобуса" : " — сейчас его не видно на карте") : "";
+    showToast(editing ? `Место «${title}» изменено${hidden}` : `Место «${title}» добавлено${hidden}`);
+  }
+
+  function deletePlace(id) {
+    const place = state.places.find(item => item.id === id);
+    if (!place) return;
+    applyPlaces(state.places.filter(item => item.id !== id));
+    state.selectedCities.delete(id);
+    delete state.cityLabelOffsets[id];
+    if (state.routeHub === id) state.routeHub = "";
+    render();
+    afterSelectionChange();
+    showUndoToast(`Место «${place.name}» удалено`);
+  }
+
+  function startPlacePick() {
+    const dialog = document.getElementById("place-dialog");
+    placePick = {
+      id: dialog.dataset.placeId || null,
+      name: document.getElementById("place-name").value,
+      coords: document.getElementById("place-coords").value
+    };
+    dialog.close();
+    closePanels();
+    canvasViewport.classList.add("is-picking");
+    showToast("Кликните точку на карте", true, { label: "Отмена", run: () => finishPlacePick(null) });
+  }
+
+  // A picked point (or null when the pick was cancelled) goes back to the dialog with the rest of the draft.
+  function finishPlacePick(point) {
+    const draft = placePick;
+    if (!draft) return;
+    placePick = null;
+    canvasViewport.classList.remove("is-picking");
+    clearTimeout(toastTimer);
+    document.getElementById("toast").hidden = true;
+    toastAction = null;
+    openPlaceDialog(draft.id, point, draft);
+  }
+
   function sanitizeOffsets(value, allowlist, strict = false) {
     const clean = {};
     if (value === undefined || value === null) return clean;
@@ -3143,6 +3423,7 @@
   function applyDocument(project, { keepView = false } = {}) {
     const view = { viewZoom: state.viewZoom, panX: state.panX, panY: state.panY };
     PROJECT_SETTING_KEYS.forEach(key => state[key] = project.settings[key]);
+    applyPlaces(project.places || []);
     syncDataset();
     enforceStyleRules();
     if (keepView) Object.assign(state, view);

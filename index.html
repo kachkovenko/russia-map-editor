@@ -484,6 +484,22 @@
     </div>
   </dialog>
 
+  <dialog class="shortcuts place-dialog" id="place-dialog" aria-labelledby="place-title">
+    <div class="shortcuts__head"><h2 id="place-title">Новое место</h2><button type="button" class="icon-button" data-close-dialog aria-label="Закрыть">×</button></div>
+    <form class="place-form" id="place-form" novalidate>
+      <label class="place-field"><span>Название</span><input id="place-name" type="text" autocomplete="off" placeholder="Например, Офис в Казани"></label>
+      <label class="place-field"><span>Координаты</span><input id="place-coords" type="text" autocomplete="off" spellcheck="false" inputmode="decimal" placeholder="55.7558, 37.6173" aria-describedby="place-coords-hint"></label>
+      <p class="place-hint" id="place-coords-hint" aria-live="polite"></p>
+      <button type="button" class="place-pick" id="place-pick"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>Указать точку на карте</button>
+      <div class="confirm__actions place-actions">
+        <button type="button" class="button place-delete" id="place-delete" hidden>Удалить</button>
+        <span class="place-actions__spacer"></span>
+        <button type="button" class="button button--secondary" data-close-dialog>Отмена</button>
+        <button type="submit" class="button button--primary" id="place-save">Добавить на карту</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="shortcuts confirm" id="reset-dialog" aria-labelledby="reset-title" aria-describedby="reset-text">
     <div class="shortcuts__head"><h2 id="reset-title">Сбросить карту?</h2><button type="button" class="icon-button" data-close-dialog aria-label="Закрыть">×</button></div>
     <div class="confirm__body">

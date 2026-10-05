@@ -307,6 +307,30 @@ kbd { padding: 2px 6px; color: var(--muted); border: 1px solid var(--line); bord
 .support__body { padding: 4px 22px 22px; color: var(--text-soft); font-size: 13px; line-height: 1.5; }
 .support__body p { margin: 0 0 16px; }
 .support__link { width: 100%; text-decoration: none; }
+.place-dialog { width: min(92vw, 420px); }
+.place-form { display: grid; gap: 12px; padding: 4px 22px 20px; }
+.place-field { display: grid; gap: 6px; color: var(--text-soft); font-size: 12px; font-weight: 500; }
+.place-field input { box-sizing: border-box; width: 100%; height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius); outline: 0; color: var(--ink); background: var(--field); font: 13px var(--font-ui); }
+.place-field input::placeholder { color: var(--faint); }
+.place-field input:focus { border-color: var(--accent); background: var(--panel); }
+.place-field input.is-invalid { border-color: #d64545; }
+.place-hint { min-height: 2.9em; margin: -6px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.45; }
+.place-hint.is-found { color: var(--ink); }
+.place-hint.is-invalid { color: #d64545; }
+.place-pick { display: inline-flex; align-items: center; justify-self: start; gap: 6px; margin-top: -4px; padding: 0; border: 0; color: var(--accent); background: transparent; font: 500 12.5px var(--font-ui); cursor: pointer; }
+.place-pick:hover { text-decoration: underline; }
+.place-pick svg { width: 16px; height: 16px; }
+.place-actions { margin-top: 8px; }
+.place-actions__spacer { flex: 1; }
+.place-delete { padding: 0 10px; color: #d64545; }
+.place-delete:hover { background: rgba(214,69,69,.08); }
+.add-place { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; margin-bottom: 4px; padding: 5px 8px; border: 1px dashed var(--line); border-radius: 7px; color: var(--accent); background: transparent; font: 500 12px var(--font-ui); text-align: left; cursor: pointer; }
+.add-place span { display: grid; place-items: center; width: 16px; height: 16px; font-size: 16px; line-height: 1; }
+.add-place:hover { border-color: var(--accent); background: var(--accent-soft); }
+.object-edit { display: grid; place-items: center; width: 28px; height: 28px; margin: -4px -4px -4px 0; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: transparent; cursor: pointer; }
+.object-edit:hover { color: var(--ink); background: var(--panel); }
+.object-edit .ui-icon { width: 15px; height: 15px; }
+.canvas-viewport.is-picking, .canvas-viewport.is-picking .region, .canvas-viewport.is-picking .city-marker { cursor: crosshair; }
 .ai-help { width: min(92vw, 520px); }
 .ai-help__steps { margin: 0 0 12px; padding-left: 20px; }
 .ai-help__steps li + li { margin-top: 4px; }
