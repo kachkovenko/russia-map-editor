@@ -283,6 +283,14 @@ kbd { padding: 2px 6px; color: var(--muted); border: 1px solid var(--line); bord
 .onboarding__link { padding: 0; border: 0; color: var(--accent); background: transparent; font-size: 12.5px; cursor: pointer; }
 .onboarding__link:hover { text-decoration: underline; }
 .onboarding__ok { min-height: 32px; padding: 0 14px; }
+/* The first-run card speaks the layout's language: clicks and side panels on a desktop, taps and header buttons
+   when the panels are tucked away (the same 1000 px breakpoint as the layout). */
+.onboarding .for-touch { display: none; }
+@media (max-width: 1000px) {
+  .onboarding .for-desktop { display: none; }
+  .onboarding .for-touch { display: revert; }
+  .onboarding__actions { justify-content: flex-end; }
+}
 /* Drag a project file over the board to open it. */
 .drop-overlay { position: absolute; z-index: 20; inset: 12px; display: grid; place-items: center; border: 2px dashed var(--accent); border-radius: var(--radius-lg); background: rgba(238,241,255,.88); color: var(--ink); font-size: 14px; pointer-events: none; }
 .drop-overlay p { margin: 0; padding: 12px 18px; border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow-pop); }

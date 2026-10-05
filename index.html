@@ -191,13 +191,19 @@
         <div class="onboarding" id="onboarding" role="note" hidden>
           <button type="button" class="icon-button onboarding__close" id="onboarding-close" aria-label="Закрыть">×</button>
           <p class="onboarding__title">Как собрать карту</p>
-          <ol>
+          <ol class="for-desktop">
             <li><b>Отметьте</b> регионы и города — кликом на карте или в списке слева. Shift-клик добавляет ещё.</li>
             <li><b>Раскрасьте</b> — справа, в разделе «Заливка», готовые темы и все цвета.</li>
             <li><b>Экспортируйте</b> в PNG, SVG или PPTX.</li>
           </ol>
-          <p class="onboarding__more">Подписи городов можно перетаскивать, двойной клик возвращает их на место. Эта подсказка всегда есть в меню «?» вверху.</p>
-          <div class="onboarding__actions"><button type="button" class="onboarding__link" data-open-shortcuts>Горячие клавиши</button><button type="button" class="button button--primary onboarding__ok" id="onboarding-ok">Понятно</button></div>
+          <ol class="for-touch">
+            <li><b>Отметьте</b> регионы — нажатием на карте. Города и весь список — под кнопкой с лупой вверху.</li>
+            <li><b>Раскрасьте</b> — кнопка с ползунками вверху открывает настройки: готовые темы и цвета в разделе «Заливка».</li>
+            <li><b>Экспортируйте</b> — синяя кнопка в правом верхнем углу: PNG, SVG или PPTX.</li>
+          </ol>
+          <p class="onboarding__more for-desktop">Подписи городов можно перетаскивать, двойной клик возвращает их на место. Эта подсказка всегда есть в меню «?» вверху.</p>
+          <p class="onboarding__more for-touch">Эта подсказка всегда есть в меню «?» вверху.</p>
+          <div class="onboarding__actions"><button type="button" class="onboarding__link for-desktop" data-open-shortcuts>Горячие клавиши</button><button type="button" class="button button--primary onboarding__ok" id="onboarding-ok">Понятно</button></div>
         </div>
         <div class="status-bar" id="status-bar" aria-live="off" hidden>
           <span id="cursor-geo" aria-label="Координаты под курсором"></span>
@@ -469,6 +475,14 @@
   </div>
 
   <input class="visually-hidden" id="project-file-input" type="file" accept=".json" tabindex="-1">
+
+  <dialog class="shortcuts confirm" id="mobile-dialog" aria-labelledby="mobile-title" aria-describedby="mobile-text">
+    <div class="shortcuts__head"><h2 id="mobile-title">Лучше на компьютере</h2></div>
+    <div class="confirm__body">
+      <p id="mobile-text">Пользоваться этим редактором на телефоне будет сложновато: экран маленький, а настроек много. Удобнее открыть его на компьютере — но посмотреть и попробовать можно и здесь.</p>
+      <div class="confirm__actions"><button type="button" class="button button--primary" data-close-dialog autofocus>Ок, буду знать</button></div>
+    </div>
+  </dialog>
 
   <dialog class="shortcuts confirm" id="reset-dialog" aria-labelledby="reset-title" aria-describedby="reset-text">
     <div class="shortcuts__head"><h2 id="reset-title">Сбросить карту?</h2><button type="button" class="icon-button" data-close-dialog aria-label="Закрыть">×</button></div>

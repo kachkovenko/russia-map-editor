@@ -3575,10 +3575,23 @@
   function openShortcuts() { openDialog("shortcuts-dialog"); }
 
   // First visit: a card with the three steps. It goes away for good on «Понятно» or with the first marked object.
+  // On a phone the first thing shown is a word of warning (the editor is made for a big screen); the first-run card
+  // comes after it is closed. Each is shown once.
   function bindOnboarding() {
     const card = document.getElementById("onboarding");
-    card.hidden = loadUiPreference("onboarded", false);
-    if (!card.hidden) card.dataset.firstRun = "1";
+    const firstRun = !loadUiPreference("onboarded", false);
+    card.hidden = true;
+    const showCard = () => {
+      if (!firstRun || loadUiPreference("onboarded", false)) return;
+      card.dataset.firstRun = "1";
+      card.hidden = false;
+    };
+    const phone = matchMedia("(max-width: 760px), (pointer: coarse) and (max-width: 1000px)").matches;
+    if (phone && !loadUiPreference("mobileWarned", false)) {
+      const dialog = document.getElementById("mobile-dialog");
+      dialog.addEventListener("close", () => { saveUiPreference("mobileWarned", true); showCard(); }, { once: true });
+      openDialog("mobile-dialog");
+    } else showCard();
     document.getElementById("onboarding-ok").addEventListener("click", dismissOnboarding);
     document.getElementById("onboarding-close").addEventListener("click", dismissOnboarding);
   }
